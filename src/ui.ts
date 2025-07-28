@@ -49,8 +49,10 @@ export class UI {
     logList!: HTMLElement;
     actionsTabBtn!: HTMLButtonElement;
     logTabBtn!: HTMLButtonElement;
+    rulesTabBtn!: HTMLButtonElement;
     checkSolutionBtn!: HTMLButtonElement;
     giveUpBtn!: HTMLButtonElement;
+    rulesPanel!: HTMLElement;
     
     // End Screen Elements
     endTitle!: HTMLElement;
@@ -115,6 +117,8 @@ export class UI {
         this.logList = document.getElementById('log-list')!;
         this.actionsTabBtn = document.getElementById('actions-tab-btn') as HTMLButtonElement;
         this.logTabBtn = document.getElementById('log-tab-btn') as HTMLButtonElement;
+        this.rulesTabBtn = document.getElementById('rules-tab-btn') as HTMLButtonElement;
+        this.rulesPanel = document.getElementById('rules-panel') as HTMLElement;
         this.checkSolutionBtn = document.getElementById('check-solution-btn') as HTMLButtonElement;
         this.giveUpBtn = document.getElementById('give-up-btn') as HTMLButtonElement;
         
@@ -136,6 +140,7 @@ export class UI {
         
         this.actionsTabBtn.addEventListener('click', () => this.switchTab('actions'));
         this.logTabBtn.addEventListener('click', () => this.switchTab('log'));
+        this.rulesTabBtn.addEventListener('click', () => this.switchTab('rules'));
         
         this.checkSolutionBtn.addEventListener('click', () => this.game.checkSolution());
         this.giveUpBtn.addEventListener('click', () => this.game.giveUp());
@@ -163,9 +168,13 @@ export class UI {
         // Log interactions
         this.logList.addEventListener('mouseover', (e) => this.handleLogHover(e));
         this.logList.addEventListener('mouseout', () => this.handleLogLeave());
+        this.logList.addEventListener('animationend', () => {
+            this.logList.classList.remove('flash');
+        });
     }
     
     setupGameUI() {
+        this._populateRulesPanel();
         this.switchTab('actions');
         this._createEmitterObjects();
         this.updateToolbar();
@@ -599,7 +608,7 @@ export class UI {
         this.pathCtx.clearRect(0, 0, this.pathOverlay.width, this.pathOverlay.height);
     }
     
-    switchTab(tabName: 'actions' | 'log') {
+    switchTab(tabName: 'actions' | 'log' | 'rules') {
         document.querySelectorAll('.tab-btn, .tab-panel').forEach(el => el.classList.remove('active'));
         document.getElementById(`${tabName}-tab-btn`)!.classList.add('active');
         document.getElementById(`${tabName}-panel`)!.classList.add('active');
@@ -613,7 +622,10 @@ export class UI {
         const resultColor = this.getPathColor(result);
         const colorName = this._getPathColorName(result);
         li.innerHTML = `<span>${resultText}</span><div class="log-entry-result"><span class="log-color-name">${colorName}</span><div class="log-color-box" style="background-color: ${resultColor};"></div></div>`;
+        
         this.logList.prepend(li);
+        this.logList.classList.add('flash');
+        
         this.switchTab('log');
 
         const startEmitter = this.emitters.find(e => e.id === waveId);
@@ -1009,5 +1021,44 @@ export class UI {
                 <li>Alle 3 Grundfarben = Dunkelgrau</li>
             </ul>
         `;
+    }
+
+    private _populateRulesPanel() {
+        this.rulesPanel.innerHTML = `
+            <h4>Grundregeln</h4>
+            <ul>
+                <li><strong>Ziel:</strong> Finde die Position und Ausrichtung der versteckten Edelsteine.</li>
+                <li>Sende Lichtwellen, um zu sehen, wo sie austreten und welche Farbe sie haben.</li>
+                <li>Ziehe die Edelsteine auf das Feld, um die Lösung nachzubauen.</li>
+                <li>Klicke auf einen platzierten Stein, um ihn zu <strong>drehen</strong>.</li>
+                <li>Steine dürfen sich nicht überlappen oder Kante an Kante liegen.</li>
+            </ul>
+            <h4>Farbmischung</h4>
+            <p>Wenn ein Lichtstrahl mehrere farbige Steine durchquert, mischen sich ihre Farben:</p>
+            <div class="color-mix-grid"></div>
+        `;
+    
+        const grid = this.rulesPanel.querySelector('.color-mix-grid')!;
+        Object.entries(COLOR_MIXING).forEach(([key, resultColor]) => {
+            const baseColors = key.split(',');
+            if (baseColors.length < 2) return; // Nur Mischungen anzeigen
+    
+            const entryDiv = document.createElement('div');
+            entryDiv.className = 'color-mix-entry';
+    
+            baseColors.forEach((colorName, index) => {
+                // Find the hex value from the COLORS constant, which uses uppercase keys
+                const colorHex = COLORS[colorName as keyof typeof COLORS];
+                entryDiv.innerHTML += `<div class="color-mix-box" style="background-color: ${colorHex}"></div>`;
+                if (index < baseColors.length - 1) {
+                    entryDiv.innerHTML += `<span>+</span>`;
+                }
+            });
+            
+            const resultName = COLOR_NAMES[key as keyof typeof COLOR_NAMES] || 'Mischung';
+    
+            entryDiv.innerHTML += `<span>=</span> <div class="color-mix-box" style="background-color: ${resultColor}"></div> <span>${resultName}</span>`;
+            grid.appendChild(entryDiv);
+        });
     }
 }

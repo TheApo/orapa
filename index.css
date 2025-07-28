@@ -171,19 +171,22 @@ html, body {
 
 /* --- Game Screen --- */
 #screen-game {
-    display: grid;
-    grid-template-rows: 1fr auto;
+    /* Removed grid layout to allow controls to float over the game area */
+    position: relative; /* Positioning context for controls */
     padding: 0;
     background: var(--surface-color);
+    justify-content: flex-start; /* Align content to top instead of center */
 }
 
 #game-container {
-    grid-row: 1;
+    flex-grow: 1; /* Make it fill the available space */
+    width: 100%;  /* And full width */
     display: flex;
     align-items: center;
     justify-content: center;
     position: relative;
     padding: 1rem;
+    padding-bottom: 180px; /* Provide space for the floating controls */
     overflow: hidden;
     min-height: 0;
 }
@@ -255,10 +258,15 @@ html, body {
 
 /* --- Controls --- */
 #controls-container {
-    grid-row: 2;
+    /* Positioned absolutely to float at the bottom of the game screen */
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    z-index: 200; /* Ensure it's above the canvases */
+
     background-color: var(--bg-color);
     border-top: 1px solid var(--border-color);
-    flex-shrink: 0;
     padding-bottom: env(safe-area-inset-bottom);
 }
 
@@ -380,4 +388,59 @@ html, body {
 
 .log-color-box {
     width: 20px; height: 20px; border: 1px solid var(--border-color); flex-shrink: 0;
+}
+
+/* --- Rules Panel --- */
+#rules-panel h4 {
+    margin-top: 1rem;
+    margin-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 0.25rem;
+}
+#rules-panel h4:first-child {
+    margin-top: 0;
+}
+
+#rules-panel ul {
+    padding-left: 1.5rem;
+    line-height: 1.6;
+    margin-bottom: 1rem;
+}
+#rules-panel p {
+    line-height: 1.6;
+}
+#rules-panel strong {
+    color: var(--primary-color);
+}
+
+.color-mix-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 0.5rem 1rem;
+    margin-top: 0.5rem;
+}
+
+.color-mix-entry {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.9rem;
+}
+
+.color-mix-box {
+    width: 20px;
+    height: 20px;
+    border: 1px solid var(--border-color);
+    flex-shrink: 0;
+}
+
+/* --- Animations --- */
+@keyframes flash-bg {
+    0% { background-color: var(--surface-color); }
+    50% { background-color: var(--primary-hover); }
+    100% { background-color: var(--surface-color); }
+}
+
+#log-list.flash {
+    animation: flash-bg 0.6s ease-in-out;
 }
