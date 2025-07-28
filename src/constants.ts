@@ -3,6 +3,7 @@
 import { CellState } from "./grid";
 
 export const DIFFICULTIES = {
+    TRAINING: 'Training',
     NORMAL: 'Normal',
     MITTEL: 'Mittel',
     SCHWER: 'Schwer',
@@ -17,9 +18,9 @@ export const COLORS = {
     LILA: '#9b59b6', // rot+blau
     HIMMELBLAU: '#5dade2', // weiss+blau
     GRUEN: '#2ecc71', // gelb+blau
-    PINK: '#f06292', // weiss+rot
+    PINK: '#ff8a80', // weiss+rot -> Hellrot
     ORANGE: '#e67e22', // gelb+rot
-    ZITRONE: '#d4e157', // weiss+gelb
+    ZITRONE: '#ffff8d', // weiss+gelb -> Hellgelb
     HELLLILA: '#ba68c8', // rot+blau+weiss
     SCHWARZ_GEM: '#2c3a47', // Gem color
     SCHWARZ_MIX: '#34495e', // rot+blau+gelb
@@ -115,6 +116,7 @@ export const GEMS: { [key: string]: any } = {
 };
 
 export const GEM_SETS: { [key: string]: string[] } = {
+    [DIFFICULTIES.TRAINING]: ['GELB', 'ROT', 'BLAU', 'WEISS_RAUTE', 'WEISS_DREIECK'],
     [DIFFICULTIES.NORMAL]: ['GELB', 'ROT', 'BLAU', 'WEISS_RAUTE', 'WEISS_DREIECK'],
     [DIFFICULTIES.MITTEL]: ['GELB', 'ROT', 'BLAU', 'WEISS_RAUTE', 'WEISS_DREIECK', 'TRANSPARENT'],
     [DIFFICULTIES.SCHWER]: ['GELB', 'ROT', 'BLAU', 'WEISS_RAUTE', 'WEISS_DREIECK', 'TRANSPARENT', 'SCHWARZ'],

@@ -148,7 +148,7 @@ html, body {
     background-color: rgba(0,0,0,0.2);
     border: 1px solid var(--border-color);
     border-radius: 8px;
-    max-width: 450px;
+    max-width: 500px;
     text-align: left;
 }
 #intro-rules p, #intro-rules ul {
@@ -165,6 +165,13 @@ html, body {
 #intro-rules h3 {
     margin-top: 0.5rem;
     margin-bottom: 0.25rem;
+    font-weight: 600;
+}
+#intro-rules h4 {
+    margin-top: 1rem;
+    margin-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 0.25rem;
     font-weight: 600;
 }
 
@@ -367,12 +374,15 @@ html, body {
     justify-content: space-between;
     align-items: center;
     -webkit-tap-highlight-color: transparent;
+    border-radius: 3px;
+    transition: background-color 0.2s;
 }
 #log-list li:last-child { border-bottom: none; }
-#log-list li.highlight-pair {
+/* #log-list li:hover { background-color: rgba(255,255,255,0.05); } */
+#log-list li.selected {
     background-color: var(--primary-hover);
+    color: var(--text-color);
 }
-#log-list li:hover { background-color: rgba(255,255,255,0.05); }
 
 
 .log-entry-result {
@@ -413,11 +423,18 @@ html, body {
     color: var(--primary-color);
 }
 
-.color-mix-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-    gap: 0.5rem 1rem;
+.color-mix-container {
+    display: flex;
+    gap: 1.5rem; /* Space between columns */
     margin-top: 0.5rem;
+    align-items: flex-start; /* Align items at the top of each column */
+}
+
+.color-mix-column {
+    flex: 1; /* Each column takes up equal space */
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem; /* Space between entries in a column */
 }
 
 .color-mix-entry {

@@ -1,6 +1,6 @@
 import { CellState } from './grid';
 
-export type EmitterState = 'normal' | 'highlight' | 'focused';
+export type EmitterState = 'normal' | 'focused';
 
 /**
  * A class to manage the state and drawing of a single emitter button on the canvas.
@@ -10,7 +10,6 @@ export class EmitterButton {
     rect: { x: number; y: number; width: number; height: number };
     state: EmitterState = 'normal'; // For highlight/focus states
     isUsed: boolean = false; // For persistent used state
-    isHovered: boolean = false; // For transient visual hover
     label: string;
     usedColor: string | null = null;
     private cornerRadius = 4;
@@ -26,7 +25,7 @@ export class EmitterButton {
                y >= this.rect.y && y <= this.rect.y + this.rect.height;
     }
 
-    draw(ctx: CanvasRenderingContext2D) {
+    draw(ctx: CanvasRenderingContext2D, isSelected: boolean = false) {
         ctx.save();
 
         // 1. Determine BASE background color
@@ -39,24 +38,23 @@ export class EmitterButton {
         ctx.fillStyle = bgColor;
         ctx.fill(path);
         
-        // 3. Layer hover effect on top if applicable
-        if (this.isHovered) {
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
-            ctx.fill(path); // Re-fill the same path with the overlay
-        }
-
-        // 4. Draw Border/Outline for different states
-        if (this.state === 'highlight') {
-            ctx.strokeStyle = '#e74c3c'; // --invalid-color
+        // 3. Draw Border/Outline for different states
+        // Selection has priority over focus visually
+        if (isSelected) {
+            ctx.strokeStyle = '#f1c40f'; // A bright yellow for selection
             ctx.lineWidth = 3;
+            ctx.shadowColor = '#f1c40f';
+            ctx.shadowBlur = 8;
             ctx.stroke(path);
+            ctx.shadowColor = 'transparent'; // Reset shadow for text
+            ctx.shadowBlur = 0;
         } else if (this.state === 'focused') {
             ctx.strokeStyle = '#3498db'; // --primary-color
             ctx.lineWidth = 2;
             ctx.stroke(path);
         }
 
-        // 5. Determine text color
+        // 4. Determine text color
         const getContrast = (hex: string) => {
             if (!hex || hex.length < 7) return '#ecf0f1'; // default text color
             try {
@@ -67,10 +65,7 @@ export class EmitterButton {
             }
         };
         
-        let textColor = getContrast(bgColor);
-        if (this.state === 'highlight') {
-            textColor = '#f1c40f'; // High-contrast yellow
-        }
+        const textColor = getContrast(bgColor);
 
         ctx.fillStyle = textColor;
         ctx.font = `bold ${this.rect.height * 0.45}px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif`;

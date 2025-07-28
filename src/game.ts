@@ -90,7 +90,6 @@ export class Game {
         gameState.log.push(logEntry);
         
         this.ui.addLogEntry(logEntry, emitterId);
-        this.ui.showWavePath(result);
     }
 
     checkSolution() {

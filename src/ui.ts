@@ -4,16 +4,6 @@ import { gameState, Gem, LogEntry, GameStatus } from './state';
 import { CellState, GRID_WIDTH, GRID_HEIGHT } from './grid';
 import { EmitterButton } from './ui-objects';
 
-type ActiveTooltip = {
-    text: string;
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    emitter1Id: string;
-    emitter2Id: string;
-};
-
 type DragInfo = {
     name: string;
     from: 'toolbar' | 'board';
@@ -65,11 +55,8 @@ export class UI {
     // Canvas interaction state
     private emitters: EmitterButton[] = [];
     private focusedEmitterId: string | null = null;
-    
-    // Tooltip & Hover state
-    private tooltipTimer: number | null = null;
-    private activeTooltip: ActiveTooltip | null = null;
-    private currentHoveredEmitter: EmitterButton | null = null;
+    private selectedWaveId: string | null = null;
+    private selectionContextEmitterId: string | null = null;
     
     // Drag & Drop State
     private dragStartInfo: { item: DragInfo, startX: number, startY: number } | null = null;
@@ -77,7 +64,6 @@ export class UI {
     private draggedItemInfo: DragInfo | null = null;
     private dragPos = { x: 0, y: 0 };
     private lastValidDropTarget = { x: -1, y: -1, isValid: false };
-    private justDragged = false;
 
     // Sizing state for the entire 12x10 board
     cellWidth = 0;
@@ -152,25 +138,49 @@ export class UI {
                 if (gameState.difficulty) this.game.start(gameState.difficulty);
                 return;
             }
+            if (e.key === 'Escape' && (gameState.status === GameStatus.PLAYING || gameState.status === GameStatus.GAME_OVER)) {
+                this.game.showMainMenu();
+                return;
+            }
             if (gameState.status === GameStatus.PLAYING) {
                 if (e.key === 'd') this.game.toggleDebugMode();
             }
         });
         
-        // Canvas interactions (only for clicks, mouse move on document handles dragging)
-        this.gemCanvas.addEventListener('click', (e) => this.handleCanvasClick(e));
+        // This global click listener handles deselecting waves when clicking outside interactive areas.
+        document.addEventListener('click', (e) => this.handleGlobalClick(e));
 
-        // Global mouse events for robust drag & drop
-        document.addEventListener('mousedown', (e) => this.handleMouseDown(e));
-        document.addEventListener('mousemove', (e) => this.handleMouseMove(e));
-        document.addEventListener('mouseup', (e) => this.handleMouseUp(e));
+        // Canvas interactions (handled specifically)
+        this.logList.addEventListener('click', (e) => this.handleLogClick(e));
 
-        // Log interactions
-        this.logList.addEventListener('mouseover', (e) => this.handleLogHover(e));
-        this.logList.addEventListener('mouseout', () => this.handleLogLeave());
+        // Global pointer events for robust drag & drop (mouse and touch)
+        document.addEventListener('mousedown', (e) => this.handlePointerDown(e));
+        document.addEventListener('touchstart', (e) => this.handlePointerDown(e), { passive: false });
+        document.addEventListener('mousemove', (e) => this.handlePointerMove(e));
+        document.addEventListener('touchmove', (e) => this.handlePointerMove(e), { passive: false });
+        document.addEventListener('mouseup', (e) => this.handlePointerUp(e));
+        document.addEventListener('touchend', (e) => this.handlePointerUp(e));
+
         this.logList.addEventListener('animationend', () => {
             this.logList.classList.remove('flash');
         });
+    }
+
+    private handleGlobalClick(e: MouseEvent) {
+        if (!this.selectedWaveId) return;
+    
+        const target = e.target as HTMLElement;
+    
+        // If the click is on an element that manages its own selection, do nothing.
+        // Let the specific handlers for the canvas and log list do their work.
+        const isInteractive = target.closest('#gem-canvas') || target.closest('#log-list li');
+    
+        if (!isInteractive) {
+            this.selectedWaveId = null;
+            this.selectionContextEmitterId = null;
+            this.redrawAll();
+            this.updateLogHighlight();
+        }
     }
     
     setupGameUI() {
@@ -179,6 +189,8 @@ export class UI {
         this._createEmitterObjects();
         this.updateToolbar();
         this.logList.innerHTML = '';
+        this.selectedWaveId = null;
+        this.selectionContextEmitterId = null;
         this.clearPath();
         this.game.updateSolutionButtonState();
         
@@ -201,6 +213,7 @@ export class UI {
     private populateDifficultyOptions() {
         this.difficultyOptions.innerHTML = '';
         const descs: {[key:string]: string} = {
+            [DIFFICULTIES.TRAINING]: "Ideal zum Lernen des Spiels, mit dem Verlauf der Lichtstrahlen.",
             [DIFFICULTIES.NORMAL]: "Die Grundlagen. Lerne die farbigen und weissen Steine kennen.",
             [DIFFICULTIES.MITTEL]: "Eine neue Herausforderung. Ein transparenter Prisma-Stein lenkt das Licht ab, ohne es zu färben.",
             [DIFFICULTIES.SCHWER]: "Expertenmodus. Neben dem transparenten kommt ein schwarzer, Licht absorbierender Stein in Spiel."
@@ -338,19 +351,37 @@ export class UI {
         ctx.clearRect(0, 0, this.gemCanvas.width, this.gemCanvas.height);
         
         this._drawBoardBackgroundAndGrid(ctx);
-        this.emitters.forEach(e => e.draw(ctx));
+
+        const selectedLog = this.selectedWaveId ? gameState.log.find(l => l.waveId === this.selectedWaveId) : null;
+
+        this.emitters.forEach(e => {
+            let isSelected = false;
+            if (selectedLog) {
+                isSelected = (e.id === selectedLog.waveId || e.id === selectedLog.result.exitId);
+            }
+            e.draw(ctx, isSelected);
+        });
+
+        this.clearPath();
+        
+        // Path is only visible in training mode OR when debug is active.
+        const shouldShowPath = gameState.difficulty === DIFFICULTIES.TRAINING || gameState.debugMode;
+
+        if (selectedLog && shouldShowPath) {
+            const color = this.getPathColor(selectedLog.result);
+            this.drawPath(selectedLog.path, color);
+        }
 
         if(gameState.status === GameStatus.PLAYING) {
             if (gameState.debugMode) this.drawDebugSolution(ctx);
             
             this.drawPlayerGems(ctx);
+            this._drawSelectedWaveTooltip(ctx);
 
             if (this.isDragging && this.draggedItemInfo) {
                 this.drawDragPreview(ctx);
             }
         }
-        
-        this._drawActiveTooltip(ctx);
     }
     
     private drawDragPreview(ctx: CanvasRenderingContext2D) {
@@ -509,39 +540,6 @@ export class UI {
         ctx.stroke(path);
         ctx.restore();
     }
-    
-    private _drawActiveTooltip(ctx: CanvasRenderingContext2D) {
-        if (!this.activeTooltip) return;
-        const { x, y, width, height, text } = this.activeTooltip;
-
-        ctx.save();
-        ctx.font = 'bold 14px sans-serif';
-        const textMetrics = ctx.measureText(text);
-        const textWidth = textMetrics.width;
-        const textHeight = 14; 
-        const padding = 8;
-        
-        let tooltipX = x + width / 2 - (textWidth/2 + padding);
-        let tooltipY = y - textHeight - padding * 2;
-
-        if (tooltipY < 0) tooltipY = y + height + padding;
-        if (tooltipX < 0) tooltipX = padding;
-        if (tooltipX + textWidth + padding * 2 > ctx.canvas.width / (window.devicePixelRatio || 1) ) {
-            tooltipX = ctx.canvas.width / (window.devicePixelRatio || 1) - textWidth - padding * 2;
-        }
-
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-        const path = new Path2D();
-        path.roundRect(tooltipX, tooltipY, textWidth + padding * 2, textHeight + padding, 5);
-        ctx.fill(path);
-
-        ctx.fillStyle = 'white';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(text, tooltipX + textWidth/2 + padding, tooltipY + textHeight/2 + padding/2);
-        ctx.restore();
-    }
-
 
     private _gridToCanvasCoords(gridX: number, gridY: number): { x: number; y: number } {
         return {
@@ -562,14 +560,6 @@ export class UI {
         if (result.colors.length === 0) return 'rgba(236, 240, 241, 0.7)';
         const key = [...result.colors].sort().join(',');
         return COLOR_MIXING[key] || '#ccc';
-    }
-
-    public showWavePath(result: { path: {x:number, y:number}[], colors: string[], absorbed?: boolean }) {
-        this.clearPath();
-        if (!gameState.debugMode) return;
-        
-        const color = this.getPathColor(result);
-        this.drawPath(result.path, color);
     }
 
     private drawPath(path: {x:number, y:number}[], color: string) {
@@ -624,9 +614,13 @@ export class UI {
         li.innerHTML = `<span>${resultText}</span><div class="log-entry-result"><span class="log-color-name">${colorName}</span><div class="log-color-box" style="background-color: ${resultColor};"></div></div>`;
         
         this.logList.prepend(li);
-        this.logList.classList.add('flash');
-        
         this.switchTab('log');
+
+        // Immediately select the new wave to show tooltip
+        this.selectedWaveId = waveId;
+        this.selectionContextEmitterId = waveId;
+
+        this.updateLogHighlight();
 
         const startEmitter = this.emitters.find(e => e.id === waveId);
         if (startEmitter) {
@@ -691,116 +685,51 @@ export class UI {
         }
         ctx.restore();
     }
-    
-    private handleCanvasClick(e: MouseEvent) {
-        if (this.justDragged) {
-            // This flag is set by handleMouseUp after a drag.
-            // It's reset by a timeout, so we just ignore this single click event.
-            return;
-        }
 
-        const rect = this.gemCanvas.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
-
-        const clickedEmitter = this.emitters.find(em => em.isInside(x, y));
-        if (clickedEmitter) {
-            if (!clickedEmitter.isUsed) {
-                this.game.sendWave(clickedEmitter.id);
+    private handleLogClick(e: MouseEvent) {
+        const li = (e.target as HTMLElement).closest('li');
+        if (li && li.dataset.waveId) {
+            const waveId = li.dataset.waveId;
+            if (this.selectedWaveId === waveId) {
+                this.selectedWaveId = null;
+                this.selectionContextEmitterId = null;
+            } else {
+                this.selectedWaveId = waveId;
+                // When clicking the log, the context is always the start emitter
+                this.selectionContextEmitterId = waveId;
             }
-            return;
-        }
-
-        const clickedGem = this.getGemAtCanvasPos(x, y);
-        if (clickedGem) {
-            this.game.rotatePlayerGem(clickedGem.id);
+            this.redrawAll();
+            this.updateLogHighlight();
         }
     }
-
-    private clearAllHighlightsAndTooltips() {
-        if (this.tooltipTimer) {
-            clearTimeout(this.tooltipTimer);
-            this.tooltipTimer = null;
-        }
-        this.activeTooltip = null;
-        this.emitters.forEach(e => {
-            if(e.state === 'highlight') e.state = 'normal';
-        });
-    }
     
-    // This method now only handles hover effects, not dragging.
-    private handleCanvasHover(e: MouseEvent) {
-        if (this.isDragging) return; // Don't process hovers while a drag is active
+    private handleCanvasHover(clientX: number, clientY: number) {
+        if (this.isDragging) return;
 
         const rect = this.gemCanvas.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
-        this.dragPos = { x, y }; // Still useful for gem hover highlights
-
-        const emitter = this.emitters.find(em => em.isInside(x,y));
-
-        if (this.currentHoveredEmitter === emitter) {
-            return; 
-        }
-
-        if(this.currentHoveredEmitter) {
-            this.currentHoveredEmitter.isHovered = false;
-        }
-        this.clearAllHighlightsAndTooltips();
-        
-        this.currentHoveredEmitter = emitter || null;
-
-        if (this.currentHoveredEmitter) {
-            this.currentHoveredEmitter.isHovered = true;
-            if (this.currentHoveredEmitter.isUsed) {
-                this.tooltipTimer = window.setTimeout(() => this._showHoverTooltip(this.currentHoveredEmitter!.id), 750);
-            }
-        }
+        const x = clientX - rect.left;
+        const y = clientY - rect.top;
+        this.dragPos = { x, y };
         
         this.redrawAll();
     }
     
     private handleCanvasMouseLeave() {
         this.dragPos = {x: -1, y: -1};
-        if (this.currentHoveredEmitter) {
-            this.currentHoveredEmitter.isHovered = false;
-            this.currentHoveredEmitter = null;
-        }
-        this.clearAllHighlightsAndTooltips();
-        this.redrawAll();
-    }
-    
-    private _showHoverTooltip(emitterId: string) {
-        this.tooltipTimer = null;
-        const logEntry = gameState.log.find(l => l.waveId === emitterId || l.result.exitId === emitterId);
-        if (!logEntry) return;
-
-        const startEmitter = this.emitters.find(e => e.id === logEntry.waveId);
-        const endEmitter = this.emitters.find(e => e.id === logEntry.result.exitId);
-        
-        if (!startEmitter || !endEmitter) return;
-        
-        const colorName = this._getPathColorName(logEntry.result);
-        const partnerId = startEmitter.id === emitterId ? endEmitter.id : startEmitter.id;
-        
-        startEmitter.state = 'highlight';
-        endEmitter.state = 'highlight';
-        
-        const triggerEmitter = this.emitters.find(e => e.id === emitterId)!;
-
-        this.activeTooltip = {
-            text: `${colorName} ➔ ${partnerId}`,
-            x: triggerEmitter.rect.x,
-            y: triggerEmitter.rect.y,
-            width: triggerEmitter.rect.width,
-            height: triggerEmitter.rect.height,
-            emitter1Id: startEmitter.id,
-            emitter2Id: endEmitter.id
-        };
-        
         this.redrawAll();
     }
 
+    private updateLogHighlight() {
+        this.logList.querySelectorAll('li').forEach(li => {
+            const htmlLi = li as HTMLLIElement;
+            if (htmlLi.dataset.waveId === this.selectedWaveId) {
+                htmlLi.classList.add('selected');
+                htmlLi.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            } else {
+                htmlLi.classList.remove('selected');
+            }
+        });
+    }
 
     private handleCanvasKeyDown(e: KeyboardEvent) {
         if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '].includes(e.key)) return;
@@ -814,10 +743,22 @@ export class UI {
                 const focusedEmitter = this.emitters.find(em => em.id === this.focusedEmitterId);
                 if (focusedEmitter && !focusedEmitter.isUsed) {
                     this.game.sendWave(this.focusedEmitterId);
+                } else if (focusedEmitter?.isUsed) {
+                    const logEntry = gameState.log.find(l => l.waveId === focusedEmitter.id || l.result.exitId === focusedEmitter.id);
+                    if (logEntry) {
+                        if (this.selectedWaveId === logEntry.waveId && this.selectionContextEmitterId === focusedEmitter.id) {
+                            this.selectedWaveId = null;
+                            this.selectionContextEmitterId = null;
+                        } else {
+                             this.selectedWaveId = logEntry.waveId;
+                             this.selectionContextEmitterId = focusedEmitter.id;
+                        }
+                    }
                 }
             }
             if(currentFocused) currentFocused.state = 'focused';
             this.redrawAll();
+            this.updateLogHighlight();
             return;
         }
 
@@ -840,23 +781,48 @@ export class UI {
             this.redrawAll();
         }
     }
-    
-    private handleMouseDown(e: MouseEvent) {
-        if (e.button !== 0) return; // Only main button
 
+    private getPointerCoordinates(e: MouseEvent | TouchEvent): { clientX: number, clientY: number } | null {
+        if (e instanceof MouseEvent) {
+            return { clientX: e.clientX, clientY: e.clientY };
+        }
+        if (e.changedTouches && e.changedTouches.length > 0) {
+            return { clientX: e.changedTouches[0].clientX, clientY: e.changedTouches[0].clientY };
+        }
+        return null;
+    }
+    
+    private handlePointerDown(e: MouseEvent | TouchEvent) {
+        if (e instanceof MouseEvent && e.button !== 0) return;
+    
+        const coords = this.getPointerCoordinates(e);
+        if (!coords) return;
+        const { clientX, clientY } = coords;
+    
         const target = e.target as HTMLElement;
         const toolbarGemEl = target.closest('.toolbar-gem:not(.placed)');
-        const canvasRect = this.gemCanvas.getBoundingClientRect();
-        const isOverCanvas = e.clientX >= canvasRect.left && e.clientX <= canvasRect.right && e.clientY >= canvasRect.top && e.clientY <= canvasRect.bottom;
+        const isOverCanvas = target.closest('#gem-canvas');
+    
+        // Key fix for mobile: Prevent synthetic mouse events that cause double actions (e.g., tap-to-select, then ghost-click-to-deselect).
+        // We do this for any touch that starts on an interactive area of our game.
+        if (e instanceof TouchEvent && (isOverCanvas || toolbarGemEl)) {
+            e.preventDefault();
+        }
         
         let potentialDragItem: DragInfo | null = null;
-        
+        let offsetX = 0;
+        let offsetY = 0;
+    
         if (toolbarGemEl) {
+            const rect = toolbarGemEl.getBoundingClientRect();
+            offsetX = clientX - rect.left;
+            offsetY = clientY - rect.top;
             const name = (toolbarGemEl as HTMLElement).dataset.gemName!;
-            potentialDragItem = { name, from: 'toolbar', gridPattern: GEMS[name].gridPattern, element: (toolbarGemEl as HTMLElement), offsetX: e.offsetX, offsetY: e.offsetY };
+            potentialDragItem = { name, from: 'toolbar', gridPattern: GEMS[name].gridPattern, element: (toolbarGemEl as HTMLElement), offsetX, offsetY };
         } else if (isOverCanvas) {
-            const x = e.clientX - canvasRect.left;
-            const y = e.clientY - canvasRect.top;
+            const canvasRect = this.gemCanvas.getBoundingClientRect();
+            const x = clientX - canvasRect.left;
+            const y = clientY - canvasRect.top;
             const gem = this.getGemAtCanvasPos(x, y);
             if (gem) {
                 const gridCoords = this._canvasToGridCoords(x, y);
@@ -867,19 +833,23 @@ export class UI {
         if (potentialDragItem) {
             this.dragStartInfo = {
                 item: potentialDragItem,
-                startX: e.clientX,
-                startY: e.clientY
+                startX: clientX,
+                startY: clientY
             };
         }
     }
 
-    private handleMouseMove(e: MouseEvent) {
+    private handlePointerMove(e: MouseEvent | TouchEvent) {
+        const coords = this.getPointerCoordinates(e);
+        if (!coords) return;
+        const { clientX, clientY } = coords;
+
         if (this.dragStartInfo) {
-            // Check if we should start dragging
+            if (e instanceof TouchEvent) e.preventDefault();
             if (!this.isDragging) {
-                const dx = e.clientX - this.dragStartInfo.startX;
-                const dy = e.clientY - this.dragStartInfo.startY;
-                if (Math.sqrt(dx * dx + dy * dy) > 5) { // Drag threshold
+                const dx = clientX - this.dragStartInfo.startX;
+                const dy = clientY - this.dragStartInfo.startY;
+                if (Math.sqrt(dx * dx + dy * dy) > 5) {
                     this.isDragging = true;
                     this.draggedItemInfo = this.dragStartInfo.item;
                     if(this.draggedItemInfo.element) {
@@ -890,31 +860,30 @@ export class UI {
 
             if (this.isDragging) {
                 const canvasRect = this.gemCanvas.getBoundingClientRect();
-                this.dragPos = { x: e.clientX - canvasRect.left, y: e.clientY - canvasRect.top };
+                this.dragPos = { x: clientX - canvasRect.left, y: clientY - canvasRect.top };
                 this.redrawAll();
             }
         } else {
-            // Standard hover logic when not about to drag
             const isOverCanvas = e.target === this.gemCanvas;
             if (isOverCanvas) {
-                this.handleCanvasHover(e);
+                this.handleCanvasHover(clientX, clientY);
             } else {
                 this.handleCanvasMouseLeave();
             }
         }
     }
     
-    private handleMouseUp(e: MouseEvent) {
-        if (this.isDragging && this.draggedItemInfo) {
-            // This flag prevents the 'click' event that fires after a drag-drop
-            // from being interpreted as a gem rotation.
-            this.justDragged = true;
-            // Use a timeout to reset the flag shortly after, so the next
-            // intended click by the user is not swallowed.
-            setTimeout(() => { this.justDragged = false; }, 0);
+    private handlePointerUp(e: MouseEvent | TouchEvent) {
+        const coords = this.getPointerCoordinates(e);
+        if (!coords) return;
+        const { clientX, clientY } = coords;
 
+        const wasDragging = this.isDragging;
+
+        // --- Finish Drag ---
+        if (wasDragging && this.draggedItemInfo) {
             const canvasRect = this.gemCanvas.getBoundingClientRect();
-            const isOverCanvas = e.clientX >= canvasRect.left && e.clientX <= canvasRect.right && e.clientY >= canvasRect.top && e.clientY <= canvasRect.bottom;
+            const isOverCanvas = clientX >= canvasRect.left && clientX <= canvasRect.right && clientY >= canvasRect.top && clientY <= canvasRect.bottom;
             
             if (isOverCanvas) {
                 if (this.lastValidDropTarget.isValid) {
@@ -931,8 +900,53 @@ export class UI {
                 }
             }
         }
+        // --- Handle Tap ---
+        else {
+            const target = e.target as HTMLElement;
+            // Only handle tap if it happened on the canvas
+            if(target.closest('#gem-canvas')) {
+                const rect = this.gemCanvas.getBoundingClientRect();
+                const x = clientX - rect.left;
+                const y = clientY - rect.top;
 
-        // Reset all drag-related state
+                const clickedEmitter = this.emitters.find(em => em.isInside(x, y));
+                if (clickedEmitter) {
+                    if (!clickedEmitter.isUsed) {
+                        this.game.sendWave(clickedEmitter.id);
+                    } else {
+                        const logEntry = gameState.log.find(l => l.waveId === clickedEmitter.id || l.result.exitId === clickedEmitter.id);
+                        if (logEntry) {
+                            if (this.selectedWaveId === logEntry.waveId && this.selectionContextEmitterId === clickedEmitter.id) {
+                                this.selectedWaveId = null;
+                                this.selectionContextEmitterId = null;
+                            } else {
+                                this.selectedWaveId = logEntry.waveId;
+                                this.selectionContextEmitterId = clickedEmitter.id;
+                            }
+                        } else { // Should not happen for a used emitter, but good to have
+                            this.selectedWaveId = null;
+                            this.selectionContextEmitterId = null;
+                        }
+                    }
+                    this.updateLogHighlight();
+                } else {
+                    const clickedGem = this.getGemAtCanvasPos(x, y);
+                    if (clickedGem) {
+                        this.selectedWaveId = null;
+                        this.selectionContextEmitterId = null;
+                        this.game.rotatePlayerGem(clickedGem.id);
+                        this.updateLogHighlight();
+                    } else {
+                        // Clicked on empty space on canvas, deselect
+                        this.selectedWaveId = null;
+                        this.selectionContextEmitterId = null;
+                        this.updateLogHighlight();
+                    }
+                }
+            }
+        }
+
+        // --- Reset State ---
         if (this.dragStartInfo?.item.element) {
             this.dragStartInfo.item.element.classList.remove('dragging');
         }
@@ -966,38 +980,44 @@ export class UI {
         return COLOR_NAMES[key] || 'Unbekannte Mischung';
     }
     
-    private handleLogHover(e: MouseEvent) {
-        const target = e.target;
-        if (!(target instanceof Element)) return;
-        const li = target.closest('li[data-wave-id]');
-        
-        this.clearAllHighlightsAndTooltips();
-
-        if (li) {
-            li.classList.add('highlight-pair');
-            const waveId = (li as HTMLElement).dataset.waveId!;
-            const entry = gameState.log.find(l => l.waveId === waveId);
-            if (entry) {
-                if (gameState.debugMode) {
-                    this.drawPath(entry.path, this.getPathColor(entry.result));
-                }
-                const startEmitter = this.emitters.find(em => em.id === entry.waveId);
-                if (startEmitter) startEmitter.state = 'highlight';
-                
-                if (entry.result.exitId) {
-                    const endEmitter = this.emitters.find(em => em.id === entry.result.exitId);
-                    if (endEmitter) endEmitter.state = 'highlight';
-                }
+    private _createColorMixEntry(key: string): HTMLElement {
+        const resultColor = COLOR_MIXING[key];
+        const baseColors = key.split(',');
+        const entryDiv = document.createElement('div');
+        entryDiv.className = 'color-mix-entry';
+    
+        let html = '';
+        baseColors.forEach((colorName, index) => {
+            const colorHex = COLORS[colorName as keyof typeof COLORS];
+            html += `<div class="color-mix-box" style="background-color: ${colorHex}"></div>`;
+            if (index < baseColors.length - 1) {
+                html += `<span>+</span>`;
             }
-        }
-        this.redrawAll();
+        });
+        
+        const resultName = COLOR_NAMES[key as keyof typeof COLOR_NAMES] || 'Mischung';
+    
+        html += `<span>=</span> <div class="color-mix-box" style="background-color: ${resultColor}"></div> <span>${resultName}</span>`;
+        entryDiv.innerHTML = html;
+        return entryDiv;
     }
 
-    private handleLogLeave() {
-        this.clearPath();
-        document.querySelectorAll('#log-list li.highlight-pair').forEach(el => el.classList.remove('highlight-pair'));
-        this.clearAllHighlightsAndTooltips();
-        this.redrawAll();
+    private _populateColorMixColumns(container: HTMLElement) {
+        if (!container) return;
+    
+        const col1 = document.createElement('div');
+        col1.className = 'color-mix-column';
+        const col2 = document.createElement('div');
+        col2.className = 'color-mix-column';
+    
+        const leftColumnKeys = ['BLAU,ROT', 'BLAU,GELB', 'GELB,ROT', 'BLAU,ROT,WEISS', 'BLAU,GELB,WEISS', 'BLAU,GELB,ROT,WEISS'];
+        const rightColumnKeys = ['BLAU,WEISS', 'ROT,WEISS', 'GELB,WEISS', 'BLAU,GELB,ROT', 'GELB,ROT,WEISS'];
+    
+        leftColumnKeys.forEach(key => col1.appendChild(this._createColorMixEntry(key)));
+        rightColumnKeys.forEach(key => col2.appendChild(this._createColorMixEntry(key)));
+    
+        container.appendChild(col1);
+        container.appendChild(col2);
     }
     
     private _populateIntroRules() {
@@ -1010,17 +1030,15 @@ export class UI {
                 <li>Ziehe Edelsteine aus der Werkzeugleiste auf das Feld. Du kannst sie verschieben und drehen.</li>
                 <li>Ein Klick auf einen platzierten Stein dreht ihn um 90°.</li>
                 <li>Steine dürfen sich nicht überlappen oder Kante an Kante liegen.</li>
-                <li>Drücke 'n' für ein neues Level mit der aktuellen Schwierigkeit.</li>
+                <li>Drücke <strong>'n'</strong> für ein neues Level oder <strong>'esc'</strong> um zum Menü zurückzukehren.</li>
             </ul>
-            <p><strong>Farbmischung:</strong></p>
-            <ul>
-                <li>Rot + Blau = Lila</li>
-                <li>Blau + Gelb = Grün</li>
-                <li>Rot + Gelb = Orange</li>
-                <li>Jede Farbe + Weiss = Hellere Variante</li>
-                <li>Alle 3 Grundfarben = Dunkelgrau</li>
-            </ul>
+            <h4>Farbmischung</h4>
+            <p>Wenn ein Lichtstrahl mehrere farbige Steine durchquert, mischen sich ihre Farben:</p>
+            <div class="color-mix-container"></div>
         `;
+
+        const container = this.introRulesEl.querySelector('.color-mix-container') as HTMLElement;
+        this._populateColorMixColumns(container);
     }
 
     private _populateRulesPanel() {
@@ -1035,30 +1053,83 @@ export class UI {
             </ul>
             <h4>Farbmischung</h4>
             <p>Wenn ein Lichtstrahl mehrere farbige Steine durchquert, mischen sich ihre Farben:</p>
-            <div class="color-mix-grid"></div>
+            <div class="color-mix-container"></div>
         `;
     
-        const grid = this.rulesPanel.querySelector('.color-mix-grid')!;
-        Object.entries(COLOR_MIXING).forEach(([key, resultColor]) => {
-            const baseColors = key.split(',');
-            if (baseColors.length < 2) return; // Nur Mischungen anzeigen
+        const container = this.rulesPanel.querySelector('.color-mix-container') as HTMLElement;
+        this._populateColorMixColumns(container);
+    }
+
+    private _drawSelectedWaveTooltip(ctx: CanvasRenderingContext2D) {
+        if (!this.selectedWaveId) return;
     
-            const entryDiv = document.createElement('div');
-            entryDiv.className = 'color-mix-entry';
+        const selectedLog = gameState.log.find(l => l.waveId === this.selectedWaveId);
+        if (!selectedLog) return;
     
-            baseColors.forEach((colorName, index) => {
-                // Find the hex value from the COLORS constant, which uses uppercase keys
-                const colorHex = COLORS[colorName as keyof typeof COLORS];
-                entryDiv.innerHTML += `<div class="color-mix-box" style="background-color: ${colorHex}"></div>`;
-                if (index < baseColors.length - 1) {
-                    entryDiv.innerHTML += `<span>+</span>`;
+        const contextEmitterId = this.selectionContextEmitterId || selectedLog.waveId;
+        const contextEmitter = this.emitters.find(e => e.id === contextEmitterId);
+        if (!contextEmitter) return;
+    
+        const startEmitterId = selectedLog.waveId;
+        const endEmitterId = selectedLog.result.exitId;
+        const colorName = this._getPathColorName(selectedLog.result);
+        const text = (contextEmitterId === startEmitterId)
+            ? `${startEmitterId} ➔ ${colorName} ➔ ${endEmitterId}`
+            : `${endEmitterId} ➔ ${colorName} ➔ ${startEmitterId}`;
+    
+        ctx.save();
+        const fontSize = this.cellHeight * 0.35;
+        ctx.font = `bold ${fontSize}px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif`;
+        ctx.textBaseline = 'middle';
+        
+        const textMetrics = ctx.measureText(text);
+        const padding = { x: 8, y: 5 };
+        const rectWidth = textMetrics.width + padding.x * 2;
+        const rectHeight = fontSize + padding.y * 2;
+        const cornerRadius = 6;
+        
+        const emitterRect = contextEmitter.rect;
+        const margin = 5;
+        const canvasW = this.gemCanvas.width / (window.devicePixelRatio || 1);
+        const canvasH = this.gemCanvas.height / (window.devicePixelRatio || 1);
+        
+        let rectX = 0, rectY = 0;
+
+        // Smart positioning logic
+        // 1. Try BELOW
+        rectY = emitterRect.y + emitterRect.height + margin;
+        rectX = emitterRect.x + emitterRect.width / 2 - rectWidth / 2;
+        if (rectY + rectHeight > canvasH) {
+            // 2. Try ABOVE
+            rectY = emitterRect.y - rectHeight - margin;
+            if (rectY < 0) {
+                // 3. Try RIGHT
+                rectX = emitterRect.x + emitterRect.width + margin;
+                rectY = emitterRect.y + emitterRect.height / 2 - rectHeight / 2;
+                if (rectX + rectWidth > canvasW) {
+                    // 4. Try LEFT, and clamp as a fallback
+                    rectX = emitterRect.x - rectWidth - margin;
                 }
-            });
-            
-            const resultName = COLOR_NAMES[key as keyof typeof COLOR_NAMES] || 'Mischung';
+            }
+        }
+        
+        // Clamp to canvas bounds to prevent tooltip from going off-screen
+        if (rectX < 0) rectX = 0;
+        if (rectX + rectWidth > canvasW) rectX = canvasW - rectWidth;
+        if (rectY < 0) rectY = 0;
+        if (rectY + rectHeight > canvasH) rectY = canvasH - rectHeight;
+        
+        const textX = rectX + rectWidth / 2;
+        const textY = rectY + rectHeight / 2;
+        
+        ctx.fillStyle = 'black'; // Solid black background
+        ctx.beginPath();
+        ctx.roundRect(rectX, rectY, rectWidth, rectHeight, cornerRadius);
+        ctx.fill();
     
-            entryDiv.innerHTML += `<span>=</span> <div class="color-mix-box" style="background-color: ${resultColor}"></div> <span>${resultName}</span>`;
-            grid.appendChild(entryDiv);
-        });
+        ctx.fillStyle = 'white';
+        ctx.textAlign = 'center';
+        ctx.fillText(text, textX, textY);
+        ctx.restore();
     }
 }
