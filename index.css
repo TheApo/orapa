@@ -365,7 +365,7 @@ html, body {
     width: 50px; /* Slightly larger for easier tapping */
     height: 50px;
     cursor: grab;
-    transition: transform 0.2s;
+    transition: transform 0.2s, opacity 0.2s;
     -webkit-tap-highlight-color: transparent;
     border: 1px solid var(--border-color);
     border-radius: 4px;
@@ -374,7 +374,11 @@ html, body {
     align-items: center;
     justify-content: center;
 }
-.toolbar-gem:hover { transform: scale(1.1); }
+.toolbar-gem.placed {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+.toolbar-gem:not(.placed):hover { transform: scale(1.1); }
 .toolbar-gem-canvas {
     width: 100%;
     height: 100%;
@@ -425,8 +429,20 @@ html, body {
 }
 #log-list li:last-child { border-bottom: none; }
 #log-list li:hover { background-color: rgba(255,255,255,0.05); }
+
+.log-entry-result {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.log-color-name {
+    font-size: 0.9em;
+    opacity: 0.9;
+}
+
 .log-color-box {
-    width: 20px; height: 20px; border: 1px solid var(--border-color); margin-left: 10px; flex-shrink: 0;
+    width: 20px; height: 20px; border: 1px solid var(--border-color); flex-shrink: 0;
 }
 
 /* Emitter Highlighting */

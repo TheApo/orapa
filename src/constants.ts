@@ -2,8 +2,6 @@
 
 import { CellState } from "./grid";
 
-export const FORBIDDEN_ZONE = { x: 0, y: 0, width: 2, height: 2 };
-
 export const DIFFICULTIES = {
     NORMAL: 'Normal',
     MITTEL: 'Mittel',
@@ -30,6 +28,7 @@ export const COLORS = {
     GRAU: '#9e9e9e', // alle 4
     ABSORBIERT: '#17202a',
     correct: '#4caf50',
+    INVALID_GEM: '#e74c3c',
 };
 
 export const COLOR_MIXING: { [key: string]: string } = {

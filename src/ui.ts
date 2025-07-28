@@ -1,4 +1,5 @@
 
+
 import { Game } from './game';
 import { GEMS, GEM_SETS, COLORS, COLOR_MIXING, DIFFICULTIES, COLOR_NAMES } from './constants';
 import { gameState, Gem, LogEntry, GameStatus } from './state';
@@ -152,7 +153,7 @@ export class UI {
         document.addEventListener('dragstart', (e) => this.handleDragStart(e));
         document.addEventListener('dragover', (e) => this.handleDragOver(e));
         document.addEventListener('drop', (e) => this.handleDrop(e));
-        document.addEventListener('dragend', (e) => this.handleDragEnd(e));
+        document.addEventListener('dragend', () => this.handleDragEnd());
 
         this.board.addEventListener('click', (e) => this.handleBoardClick(e));
         this.boardWrapper.addEventListener('mouseover', (e) => this.handleEmitterHover(e));
@@ -262,11 +263,21 @@ export class UI {
     updateToolbar() {
         this.gemToolbar.innerHTML = '';
         if (!gameState.difficulty) return;
+
+        const placedGemNames = new Set(gameState.playerGems.map(g => g.name));
+
         GEM_SETS[gameState.difficulty].forEach(gemName => {
             const gemDef = GEMS[gemName];
             const div = document.createElement('div');
             div.className = 'toolbar-gem';
-            div.draggable = true;
+            
+            if (placedGemNames.has(gemName)) {
+                div.classList.add('placed');
+                div.draggable = false;
+            } else {
+                div.draggable = true;
+            }
+
             div.dataset.gemName = gemName;
             div.title = this._getGemTooltip(gemName);
 
@@ -309,7 +320,7 @@ export class UI {
     
     redrawAll() {
         this.gemCtx.clearRect(0, 0, this.gemCanvas.width, this.gemCanvas.height);
-        this._drawGrid(this.gemCtx); // Draw grid first for perfect alignment
+        this._drawGrid(this.gemCtx);
         this.board.querySelectorAll('.gem-overlay').forEach(o => o.remove());
 
         if(gameState.status === GameStatus.PLAYING) {
@@ -318,8 +329,23 @@ export class UI {
             } else {
                 this.clearPath();
             }
-            this.drawGemGrid(this.gemCtx, this.game.playerGrid);
+            this.drawPlayerGems(this.gemCtx);
             gameState.playerGems.forEach(gem => this.addGemOverlay(gem));
+        }
+    }
+
+    private drawPlayerGems(ctx: CanvasRenderingContext2D) {
+        for (const gem of gameState.playerGems) {
+            const { gridPattern, x, y, name } = gem;
+            const color = GEMS[name].color;
+            for (let r = 0; r < gridPattern.length; r++) {
+                for (let c = 0; c < gridPattern[r].length; c++) {
+                    const state = gridPattern[r][c];
+                    if (state !== CellState.EMPTY) {
+                        this.drawCellShape(ctx, (x + c) * this.cellWidth, (y + r) * this.cellHeight, this.cellWidth, this.cellHeight, state, color);
+                    }
+                }
+            }
         }
     }
 
@@ -329,7 +355,7 @@ export class UI {
         const cellW = w / GRID_WIDTH;
         const cellH = h / GRID_HEIGHT;
 
-        ctx.strokeStyle = 'rgba(74, 98, 122, 0.5)'; // var(--border-color) with alpha
+        ctx.strokeStyle = 'rgba(74, 98, 122, 0.5)';
         ctx.lineWidth = 1;
         ctx.beginPath();
         for (let x = 1; x < GRID_WIDTH; x++) {
@@ -341,24 +367,6 @@ export class UI {
             ctx.lineTo(w, y * cellH);
         }
         ctx.stroke();
-    }
-
-    private drawGemGrid(ctx: CanvasRenderingContext2D, grid: CellState[][]) {
-        for (let y = 0; y < GRID_HEIGHT; y++) {
-            for (let x = 0; x < GRID_WIDTH; x++) {
-                const state = grid[y][x];
-                if (state !== CellState.EMPTY) {
-                    const gem = gameState.playerGems.find(g => 
-                        x >= g.x && x < g.x + g.gridPattern[0].length &&
-                        y >= g.y && y < g.y + g.gridPattern.length &&
-                        g.gridPattern[y-g.y][x-g.x] === state
-                    );
-                    if (gem) {
-                         this.drawCellShape(ctx, x * this.cellWidth, y * this.cellHeight, this.cellWidth, this.cellHeight, state, GEMS[gem.name].color);
-                    }
-                }
-            }
-        }
     }
 
     private drawDebugSolution(ctx: CanvasRenderingContext2D) {
@@ -383,81 +391,26 @@ export class UI {
             }
         }
         ctx.restore();
+    }
     
+    private drawCellShape(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, state: CellState, color: string, isInvalid = false) {
         ctx.save();
-        ctx.fillStyle = '#000000'; // Black text
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        const fontSize = Math.min(this.cellWidth / 3, 14); // Dynamic font size
-        ctx.font = `bold ${fontSize}px sans-serif`;
-    
-        for (let y = 0; y < GRID_HEIGHT; y++) {
-            for (let x = 0; x < GRID_WIDTH; x++) {
-                const state = grid[y][x];
-                let label = '';
-                switch (state) {
-                    case CellState.TRIANGLE_TL: label = 'TL'; break;
-                    case CellState.TRIANGLE_TR: label = 'TR'; break;
-                    case CellState.TRIANGLE_BL: label = 'BL'; break;
-                    case CellState.TRIANGLE_BR: label = 'BR'; break;
-                }
-    
-                if (label) {
-                    const centerX = (x + 0.5) * this.cellWidth;
-                    const centerY = (y + 0.5) * this.cellHeight;
-                    ctx.fillText(label, centerX, centerY);
-                }
-            }
-        }
-        ctx.restore();
-    }
-    
-    private drawFinalSolution(ctx: CanvasRenderingContext2D, grid: CellState[][], gems: Gem[]) {
-        const canvas = ctx.canvas;
-        const dpr = window.devicePixelRatio || 1;
-        const rect = canvas.getBoundingClientRect();
-
-        if (rect.width === 0 || rect.height === 0) return;
-
-        canvas.width = rect.width * dpr;
-        canvas.height = rect.height * dpr;
-        ctx.scale(dpr, dpr);
-        ctx.clearRect(0, 0, rect.width, rect.height);
-        
-        this._drawGrid(ctx, rect.width, rect.height);
-
-        const cellW = rect.width / GRID_WIDTH;
-        const cellH = rect.height / GRID_HEIGHT;
-
-         for (let y = 0; y < GRID_HEIGHT; y++) {
-            for (let x = 0; x < GRID_WIDTH; x++) {
-                const state = grid[y][x];
-                if (state !== CellState.EMPTY) {
-                    const gem = gems.find(g => 
-                        x >= g.x && x < g.x + g.gridPattern[0].length &&
-                        y >= g.y && y < g.y + g.gridPattern.length &&
-                        g.gridPattern[y-g.y][x-g.x] === state
-                    );
-                     if (gem) {
-                        this.drawCellShape(ctx, x * cellW, y * cellH, cellW, cellH, state, GEMS[gem.name].color, true);
-                    }
-                }
-            }
-        }
-    }
-
-    private drawCellShape(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, state: CellState, color: string, isFinalSolution = false) {
         if (color === COLORS.TRANSPARENT) {
             ctx.fillStyle = 'transparent';
-            // A light, glassy blue, distinct from white, grey, and other gem colors.
             ctx.strokeStyle = '#a4d4e4';
             ctx.lineWidth = 2;
         } else {
             ctx.fillStyle = color;
-            ctx.strokeStyle = isFinalSolution ? COLORS.correct : 'rgba(0,0,0,0.4)';
-            ctx.lineWidth = isFinalSolution ? 2 : 1;
+            ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+            ctx.lineWidth = 1;
         }
-
+    
+        if (isInvalid) {
+            ctx.strokeStyle = COLORS.INVALID_GEM;
+            ctx.lineWidth = 2;
+            ctx.setLineDash([4, 4]);
+        }
+    
         ctx.beginPath();
         switch (state) {
             case CellState.BLOCK:
@@ -479,6 +432,7 @@ export class UI {
         }
         ctx.fill();
         ctx.stroke();
+        ctx.restore();
     }
     
     private addGemOverlay(gem: Gem) {
@@ -577,13 +531,18 @@ export class UI {
         const { result } = logEntry;
         const resultText = `${waveId} ➔ ${result.exitId}`;
         const resultColor = this.getPathColor(result);
+        const colorName = this._getPathColorName(result);
 
-        li.innerHTML = `<span>${resultText}</span><div class="log-color-box" style="background-color: ${resultColor};"></div>`;
+        li.innerHTML = `<span>${resultText}</span>
+                        <div class="log-entry-result">
+                            <span class="log-color-name">${colorName}</span>
+                            <div class="log-color-box" style="background-color: ${resultColor};"></div>
+                        </div>`;
         this.logList.prepend(li);
         this.switchTab('log');
     }
     
-    showEndScreen(isWin: boolean, waveCount: number, secretGrid: CellState[][], secretGems: Gem[]) {
+    showEndScreen(isWin: boolean, waveCount: number, secretGems: Gem[], playerGems: Gem[]) {
         this.endTitle.textContent = isWin ? 'Gewonnen!' : 'Verloren!';
         this.endStats.textContent = isWin 
             ? `Du hast die Mine in ${waveCount} Abfragen gelöst!`
@@ -591,8 +550,66 @@ export class UI {
         
         this.showScreen('end');
         requestAnimationFrame(() => {
-            this.drawFinalSolution(this.endSolutionCtx, secretGrid, secretGems);
+            const playerSolutionToShow = isWin ? [] : playerGems;
+            this.drawEndScreenSolution(this.endSolutionCtx, secretGems, playerSolutionToShow);
         });
+    }
+
+    private drawEndScreenSolution(ctx: CanvasRenderingContext2D, correctGems: Gem[], playerGems: Gem[]) {
+        const canvas = ctx.canvas;
+        const dpr = window.devicePixelRatio || 1;
+        const rect = canvas.getBoundingClientRect();
+    
+        if (rect.width === 0 || rect.height === 0) return;
+    
+        canvas.width = rect.width * dpr;
+        canvas.height = rect.height * dpr;
+        ctx.scale(dpr, dpr);
+        ctx.clearRect(0, 0, rect.width, rect.height);
+        
+        this._drawGrid(ctx, rect.width, rect.height);
+    
+        const cellW = rect.width / GRID_WIDTH;
+        const cellH = rect.height / GRID_HEIGHT;
+        
+        this.drawGemSet(ctx, correctGems, { cellW, cellH, opacity: 1.0 });
+    
+        if (playerGems.length > 0) {
+            this.drawGemSet(ctx, playerGems, { cellW, cellH, opacity: 0.55, highlightInvalid: true });
+        }
+    }
+    
+    private drawGemSet(
+        ctx: CanvasRenderingContext2D, 
+        gems: Gem[], 
+        options: { cellW: number, cellH: number, opacity: number, highlightInvalid?: boolean }
+    ) {
+        ctx.save();
+        ctx.globalAlpha = options.opacity;
+        
+        for (const gem of gems) {
+            const { gridPattern, x, y, name } = gem;
+            const color = GEMS[name].color;
+            const shouldHighlight = !!options.highlightInvalid && !gem.isValid;
+            
+            for (let r = 0; r < gridPattern.length; r++) {
+                for (let c = 0; c < gridPattern[r].length; c++) {
+                    const state = gridPattern[r][c];
+                    if (state !== CellState.EMPTY) {
+                        this.drawCellShape(
+                            ctx, 
+                            (x + c) * options.cellW, 
+                            (y + r) * options.cellH, 
+                            options.cellW, options.cellH, 
+                            state, color, 
+                            shouldHighlight
+                        );
+                    }
+                }
+            }
+        }
+        
+        ctx.restore();
     }
 
     private handleDragStart(e: DragEvent) {
@@ -622,9 +639,8 @@ export class UI {
             info.element.classList.add('dragging');
         }, 0);
     
-        e.dataTransfer.setDragImage(new Image(), 0, 0); // Hide default ghost
+        e.dataTransfer.setDragImage(new Image(), 0, 0);
     
-        // Setup and draw our custom preview
         const pWidth = info.gridPattern[0].length;
         const pHeight = info.gridPattern.length;
         this.dragPreviewEl.style.width = `${pWidth * this.cellWidth}px`;
@@ -655,8 +671,10 @@ export class UI {
         const x = e.clientX - boardRect.left;
         const y = e.clientY - boardRect.top;
         
-        const gridX = Math.round(x / this.cellWidth - 0.5);
-        const gridY = Math.round(y / this.cellHeight - 0.5);
+        const pWidth = this.draggedItemInfo.gridPattern[0].length;
+        const pHeight = this.draggedItemInfo.gridPattern.length;
+        const gridX = Math.round(x / this.cellWidth - pWidth / 2);
+        const gridY = Math.round(y / this.cellHeight - pHeight / 2);
     
         const previewX = this.board.offsetLeft + gridX * this.cellWidth;
         const previewY = this.board.offsetTop + gridY * this.cellHeight;
@@ -667,13 +685,8 @@ export class UI {
     
         this.lastValidDropTarget = { x: gridX, y: gridY, isValid };
     
-        if (isValid) {
-            this.dragPreviewEl.classList.add('valid-pos');
-            this.dragPreviewEl.classList.remove('invalid-pos');
-        } else {
-            this.dragPreviewEl.classList.add('invalid-pos');
-            this.dragPreviewEl.classList.remove('valid-pos');
-        }
+        this.dragPreviewEl.classList.toggle('valid-pos', isValid);
+        this.dragPreviewEl.classList.toggle('invalid-pos', !isValid);
     }
 
     private handleDrop(e: DragEvent) {
@@ -688,38 +701,34 @@ export class UI {
                 this.game.removePlayerGem(this.draggedItemInfo.id);
             }
         } else {
-            if (this.lastValidDropTarget.isValid) {
-                const { x, y } = this.lastValidDropTarget;
-                if (this.draggedItemInfo.from === 'toolbar') {
-                    this.game.addPlayerGem(this.draggedItemInfo.name, x, y);
-                } else { // from board
-                    this.game.movePlayerGem(this.draggedItemInfo.id, x, y);
-                }
+            const { x, y } = this.lastValidDropTarget;
+            if (this.draggedItemInfo.from === 'toolbar') {
+                this.game.addPlayerGem(this.draggedItemInfo.name, x, y);
+            } else {
+                this.game.movePlayerGem(this.draggedItemInfo.id, x, y);
             }
         }
+        
+        this.handleDragEnd();
     }
 
-    private handleDragEnd(e: DragEvent) {
+    private handleDragEnd() {
         if (!this.draggedItemInfo) return;
     
-        // Hide the preview element. This is the most important cleanup step.
         this.dragPreviewEl.style.display = 'none';
         this.dragPreviewEl.classList.remove('valid-pos', 'invalid-pos');
         
-        // Reset drag info state
         this.draggedItemInfo = null;
         
-        // Perform a final redraw to synchronize the UI with the game state.
-        // This handles all cases: a successful move, a removal, or a cancelled drag.
-        // It will implicitly remove the 'dragging' class by recreating all overlays from the current gameState.
         this.redrawAll();
     }
     
     private handleBoardClick(e: MouseEvent) {
         const target = e.target;
-        if (!(target instanceof Element)) return;
+        if (!(target instanceof Element) || this.draggedItemInfo) return;
+        
         const overlay = target.closest('.gem-overlay');
-        if (overlay && !this.draggedItemInfo) { // Prevent rotation during a drag
+        if (overlay) {
             this.game.rotatePlayerGem(overlay.id);
         }
     }
@@ -745,7 +754,6 @@ export class UI {
         if (!logEntry) return;
 
         const colorName = this._getPathColorName(logEntry.result);
-
         const startId = logEntry.waveId;
         const endId = logEntry.result.exitId;
 
@@ -753,14 +761,9 @@ export class UI {
         const endEl = this.boardWrapper.querySelector(`.emitter[data-id="${endId}"]`);
 
         if (startEl && endEl) {
-            const pathColor = this.getPathColor(logEntry.result);
-            const highlightClass = pathColor.toLowerCase() === COLORS.ROT.toLowerCase()
-                ? 'highlight-pair-alt'
-                : 'highlight-pair';
-            
+            const highlightClass = 'highlight-pair';
             startEl.classList.add(highlightClass);
             endEl.classList.add(highlightClass);
-
             (startEl as HTMLElement).title = colorName;
             (endEl as HTMLElement).title = colorName;
         }
@@ -770,7 +773,7 @@ export class UI {
         const target = e.target as HTMLElement;
         if (target.classList.contains('emitter')) {
              this.boardWrapper.querySelectorAll('.emitter').forEach(el => {
-                el.classList.remove('highlight-pair', 'highlight-pair-alt');
+                el.classList.remove('highlight-pair');
                 (el as HTMLElement).title = '';
             });
         }
