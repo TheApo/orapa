@@ -90,7 +90,6 @@ export class Game {
         gameState.log.push(logEntry);
         
         this.ui.addLogEntry(logEntry, emitterId);
-        this.ui.updateEmitterState(emitterId, result);
         this.ui.showWavePath(result);
     }
 
@@ -170,14 +169,28 @@ export class Game {
     rotatePlayerGem(id: string) {
         const gem = gameState.playerGems.find(g => g.id === id);
         if (gem) {
+            const oldWidth = gem.gridPattern[0].length;
+            const oldHeight = gem.gridPattern.length;
+
+            // 1. Calculate center point before rotation
+            const centerX = gem.x + oldWidth / 2;
+            const centerY = gem.y + oldHeight / 2;
+
+            // 2. Rotate pattern and update dimensions
             gem.rotation = (gem.rotation + 90) % 360;
             gem.gridPattern = rotateGridPattern(gem.gridPattern);
+            const newWidth = gem.gridPattern[0].length;
+            const newHeight = gem.gridPattern.length;
 
-            const height = gem.gridPattern.length;
-            const width = gem.gridPattern[0].length;
-            gem.x = Math.max(0, Math.min(gem.x, GRID_WIDTH - width));
-            gem.y = Math.max(0, Math.min(gem.y, GRID_HEIGHT - height));
+            // 3. Calculate new top-left based on center and round it
+            gem.x = Math.round(centerX - newWidth / 2);
+            gem.y = Math.round(centerY - newHeight / 2);
 
+            // 4. Clamp to grid boundaries as a safeguard
+            gem.x = Math.max(0, Math.min(gem.x, GRID_WIDTH - newWidth));
+            gem.y = Math.max(0, Math.min(gem.y, GRID_HEIGHT - newHeight));
+
+            // 5. Revalidate and redraw
             this._revalidateAllPlayerGems();
             this.updateSolutionButtonState();
             this.ui.redrawAll();

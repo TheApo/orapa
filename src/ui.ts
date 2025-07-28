@@ -1,10 +1,29 @@
-
-
 import { Game } from './game';
 import { GEMS, GEM_SETS, COLORS, COLOR_MIXING, DIFFICULTIES, COLOR_NAMES } from './constants';
 import { gameState, Gem, LogEntry, GameStatus } from './state';
-import { CellState } from './grid';
-import { GRID_WIDTH, GRID_HEIGHT } from './grid';
+import { CellState, GRID_WIDTH, GRID_HEIGHT } from './grid';
+import { EmitterButton } from './ui-objects';
+
+type ActiveTooltip = {
+    text: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    emitter1Id: string;
+    emitter2Id: string;
+};
+
+type DragInfo = {
+    name: string;
+    from: 'toolbar' | 'board';
+    gridPattern: CellState[][];
+    element?: HTMLElement; // for toolbar item
+    id?: string; // for board gem
+    offsetX: number;
+    offsetY: number;
+};
+
 
 export class UI {
     game!: Game;
@@ -22,8 +41,6 @@ export class UI {
     
     // Game Screen Elements
     boardWrapper!: HTMLElement;
-    board!: HTMLElement;
-    emitterContainers: { [key: string]: HTMLElement } = {};
     gemCanvas!: HTMLCanvasElement;
     gemCtx!: CanvasRenderingContext2D;
     pathOverlay!: HTMLCanvasElement;
@@ -43,26 +60,32 @@ export class UI {
     btnNewLevel!: HTMLButtonElement;
     btnMenu!: HTMLButtonElement;
     
-    // Drag & Drop Elements
-    dragPreviewEl!: HTMLElement;
-    dragPreviewCanvas!: HTMLCanvasElement;
-    dragPreviewCtx!: CanvasRenderingContext2D;
-    private draggedItemInfo: {
-        id: string; // gemName from toolbar, or gem.id from board
-        name: string;
-        from: 'toolbar' | 'board';
-        gridPattern: CellState[][];
-        element: HTMLElement;
-    } | null = null;
+    // Canvas interaction state
+    private emitters: EmitterButton[] = [];
+    private focusedEmitterId: string | null = null;
+    
+    // Tooltip & Hover state
+    private tooltipTimer: number | null = null;
+    private activeTooltip: ActiveTooltip | null = null;
+    private currentHoveredEmitter: EmitterButton | null = null;
+    
+    // Drag & Drop State
+    private dragStartInfo: { item: DragInfo, startX: number, startY: number } | null = null;
+    private isDragging = false;
+    private draggedItemInfo: DragInfo | null = null;
+    private dragPos = { x: 0, y: 0 };
     private lastValidDropTarget = { x: -1, y: -1, isValid: false };
+    private justDragged = false;
 
+    // Sizing state for the entire 12x10 board
     cellWidth = 0;
     cellHeight = 0;
+    gap = 1;
 
     constructor() {
         this.cacheDOMElements();
         this.bindGlobalEvents();
-        this._populateIntroRules(); // Populate rules on startup
+        this._populateIntroRules();
     }
 
     bindGame(gameInstance: Game) {
@@ -82,22 +105,11 @@ export class UI {
         this.btnBackToMain1 = document.getElementById('btn-back-to-main-1') as HTMLButtonElement;
 
         this.boardWrapper = document.getElementById('game-board-wrapper')!;
-        this.board = document.getElementById('game-board')!;
         
-        this.emitterContainers.top = this.boardWrapper.querySelector('.emitters-top')!;
-        this.emitterContainers.bottom = this.boardWrapper.querySelector('.emitters-bottom')!;
-        this.emitterContainers.left = this.boardWrapper.querySelector('.emitters-left')!;
-        this.emitterContainers.right = this.boardWrapper.querySelector('.emitters-right')!;
-
         this.gemCanvas = document.getElementById('gem-canvas') as HTMLCanvasElement;
         this.gemCtx = this.gemCanvas.getContext('2d')!;
         this.pathOverlay = document.getElementById('path-overlay') as HTMLCanvasElement;
         this.pathCtx = this.pathOverlay.getContext('2d')!;
-        
-        this.dragPreviewEl = document.getElementById('drag-preview')!;
-        this.dragPreviewCanvas = document.createElement('canvas');
-        this.dragPreviewEl.appendChild(this.dragPreviewCanvas);
-        this.dragPreviewCtx = this.dragPreviewCanvas.getContext('2d')!;
         
         this.gemToolbar = document.getElementById('gem-toolbar')!;
         this.logList = document.getElementById('log-list')!;
@@ -117,9 +129,7 @@ export class UI {
     private bindGlobalEvents() {
         this.btnStartGame.addEventListener('click', () => this.game.showDifficultySelect());
         this.btnNewLevel.addEventListener('click', () => {
-            if (gameState.difficulty) {
-                this.game.start(gameState.difficulty);
-            }
+            if (gameState.difficulty) this.game.start(gameState.difficulty);
         });
         this.btnMenu.addEventListener('click', () => this.game.showMainMenu());
         this.btnBackToMain1.addEventListener('click', () => this.game.showMainMenu());
@@ -130,61 +140,53 @@ export class UI {
         this.checkSolutionBtn.addEventListener('click', () => this.game.checkSolution());
         this.giveUpBtn.addEventListener('click', () => this.game.giveUp());
 
+        // Keyboard navigation and actions
+        this.gemCanvas.addEventListener('keydown', (e) => this.handleCanvasKeyDown(e));
         document.addEventListener('keydown', (e) => {
-            // Handle 'n' for new level on game and end screens
             if (e.key === 'n' && (gameState.status === GameStatus.PLAYING || gameState.status === GameStatus.GAME_OVER)) {
-                if (gameState.difficulty) {
-                    this.game.start(gameState.difficulty);
-                }
-                return; // Prevent other handlers
+                if (gameState.difficulty) this.game.start(gameState.difficulty);
+                return;
             }
-
-            // Handle keys specific to playing state
             if (gameState.status === GameStatus.PLAYING) {
-                if (e.key === 'Escape') {
-                    this.game.showMainMenu();
-                } else if (e.key === 'd') {
-                    this.game.toggleDebugMode();
-                }
+                if (e.key === 'd') this.game.toggleDebugMode();
             }
         });
+        
+        // Canvas interactions (only for clicks, mouse move on document handles dragging)
+        this.gemCanvas.addEventListener('click', (e) => this.handleCanvasClick(e));
 
-        // Drag and Drop listeners
-        document.addEventListener('dragstart', (e) => this.handleDragStart(e));
-        document.addEventListener('dragover', (e) => this.handleDragOver(e));
-        document.addEventListener('drop', (e) => this.handleDrop(e));
-        document.addEventListener('dragend', () => this.handleDragEnd());
+        // Global mouse events for robust drag & drop
+        document.addEventListener('mousedown', (e) => this.handleMouseDown(e));
+        document.addEventListener('mousemove', (e) => this.handleMouseMove(e));
+        document.addEventListener('mouseup', (e) => this.handleMouseUp(e));
 
-        this.board.addEventListener('click', (e) => this.handleBoardClick(e));
-        this.boardWrapper.addEventListener('mouseover', (e) => this.handleEmitterHover(e));
-        this.boardWrapper.addEventListener('mouseout', (e) => this.handleEmitterMouseOut(e));
-
-        this.logList.addEventListener('mousedown', (e) => this.handleLogPress(e));
-        this.logList.addEventListener('mouseup', () => this.clearPath());
-        this.logList.addEventListener('mouseleave', () => this.clearPath());
-        this.logList.addEventListener('touchstart', (e) => this.handleLogPress(e), { passive: true });
-        this.logList.addEventListener('touchend', () => this.clearPath());
+        // Log interactions
+        this.logList.addEventListener('mouseover', (e) => this.handleLogHover(e));
+        this.logList.addEventListener('mouseout', () => this.handleLogLeave());
     }
     
     setupGameUI() {
-        this.populateEmitters();
+        this.switchTab('actions');
+        this._createEmitterObjects();
         this.updateToolbar();
         this.logList.innerHTML = '';
         this.clearPath();
         this.game.updateSolutionButtonState();
-        this.switchTab('actions');
         
-        // Use ResizeObserver to handle canvas scaling and redrawing
         const ro = new ResizeObserver(() => this.onBoardResize());
-        ro.observe(this.board);
+        ro.observe(this.boardWrapper);
+        this.onBoardResize();
     }
 
     showScreen(screenName: 'main' | 'difficulty' | 'game' | 'end') {
-        if (screenName === 'difficulty') {
-            this.populateDifficultyOptions();
-        }
+        if (screenName === 'difficulty') this.populateDifficultyOptions();
+        
         Object.values(this.screens).forEach(s => s.classList.add('hidden'));
         this.screens[screenName].classList.remove('hidden');
+
+        if (screenName === 'game') {
+            this.gemCanvas.focus();
+        }
     }
 
     private populateDifficultyOptions() {
@@ -202,41 +204,55 @@ export class UI {
         });
     }
 
-    private populateEmitters() {
-        Object.values(this.emitterContainers).forEach(c => c.innerHTML = '');
-        for(let i=0; i<GRID_WIDTH; i++) this.emitterContainers.top.appendChild(this.createEmitter(`T${i+1}`));
-        for(let i=0; i<GRID_WIDTH; i++) this.emitterContainers.bottom.appendChild(this.createEmitter(`B${i+1}`));
-        for(let i=0; i<GRID_HEIGHT; i++) this.emitterContainers.left.appendChild(this.createEmitter(`L${i+1}`));
-        for(let i=0; i<GRID_HEIGHT; i++) this.emitterContainers.right.appendChild(this.createEmitter(`R${i+1}`));
+    private _createEmitterObjects() {
+        this.emitters = [];
+        for (let i = 0; i < GRID_WIDTH; i++) this.emitters.push(new EmitterButton(`T${i + 1}`, `T${i + 1}`));
+        for (let i = 0; i < GRID_WIDTH; i++) this.emitters.push(new EmitterButton(`B${i + 1}`, `B${i + 1}`));
+        for (let i = 0; i < GRID_HEIGHT; i++) this.emitters.push(new EmitterButton(`L${i + 1}`, `L${i + 1}`));
+        for (let i = 0; i < GRID_HEIGHT; i++) this.emitters.push(new EmitterButton(`R${i + 1}`, `R${i + 1}`));
+        
+        if (this.emitters.length > 0) {
+            this.focusedEmitterId = this.emitters[0].id;
+        }
     }
     
     private onBoardResize() {
-        const boardRect = this.board.getBoundingClientRect();
-        if (boardRect.width === 0 || boardRect.height === 0) return;
+        const wrapperRect = this.boardWrapper.getBoundingClientRect();
+        if (wrapperRect.width === 0 || wrapperRect.height === 0) return;
+    
+        const totalGridCols = GRID_WIDTH + 2;
+        const totalGridRows = GRID_HEIGHT + 2;
+    
+        this.cellWidth = (wrapperRect.width - (totalGridCols - 1) * this.gap) / totalGridCols;
+        this.cellHeight = (wrapperRect.height - (totalGridRows - 1) * this.gap) / totalGridRows;
         
         const dpr = window.devicePixelRatio || 1;
-        this.cellWidth = boardRect.width / GRID_WIDTH;
-        this.cellHeight = boardRect.height / GRID_HEIGHT;
-
         [this.pathOverlay, this.gemCanvas].forEach(canvas => {
-            canvas.width = boardRect.width * dpr;
-            canvas.height = boardRect.height * dpr;
-            canvas.style.width = `${boardRect.width}px`;
-            canvas.style.height = `${boardRect.height}px`;
+            canvas.width = wrapperRect.width * dpr;
+            canvas.height = wrapperRect.height * dpr;
+            canvas.style.width = `${wrapperRect.width}px`;
+            canvas.style.height = `${wrapperRect.height}px`;
             const ctx = canvas.getContext('2d')!;
             ctx.scale(dpr, dpr);
         });
         
-        this.redrawAll();
-    }
+        this.emitters.forEach(emitter => {
+            const id = emitter.id;
+            const num = parseInt(id.substring(1)) - 1;
+            let col = 0, row = 0;
+            switch(id[0]) {
+                case 'T': col = num + 1; row = 0; break;
+                case 'B': col = num + 1; row = totalGridRows - 1; break;
+                case 'L': col = 0; row = num + 1; break;
+                case 'R': col = totalGridCols - 1; row = num + 1; break;
+            }
+            emitter.rect.x = col * (this.cellWidth + this.gap);
+            emitter.rect.y = row * (this.cellHeight + this.gap);
+            emitter.rect.width = this.cellWidth;
+            emitter.rect.height = this.cellHeight;
+        });
 
-    private createEmitter(id: string): HTMLButtonElement {
-        const emitter = document.createElement('button');
-        emitter.className = 'emitter';
-        emitter.dataset.id = id;
-        emitter.textContent = id; // Updated to show full ID
-        emitter.addEventListener('click', () => this.game.sendWave(id));
-        return emitter;
+        this.redrawAll();
     }
 
     private _getGemTooltip(gemName: string): string {
@@ -244,48 +260,33 @@ export class UI {
         if (!gemDef) return '';
     
         switch (gemName) {
-            case 'TRANSPARENT':
-                return "Reflektiert nur den Lichtstrahl, aber gibt keine weitere Farbe dazu, der Lichtstrahl behält seine aktuelle Farbe";
-            case 'SCHWARZ':
-                return "Absorbiert das Licht, wenn er vom Lichtstrahl getroffen wird. Und es kommt kein Licht zurück.";
+            case 'TRANSPARENT': return "Reflektiert nur, färbt nicht.";
+            case 'SCHWARZ': return "Absorbiert Licht.";
             default:
                 if (gemDef.baseGems && gemDef.baseGems.length > 0) {
-                    const colorKey = gemDef.baseGems[0]; // e.g., 'GELB'
-                    const colorDisplayName = COLOR_NAMES[colorKey]?.toLowerCase(); // e.g., 'gelb'
-                    if (colorDisplayName) {
-                        return `Fügt dem Lichtstrahl '${colorDisplayName}' hinzu, wenn er getroffen wird.`;
-                    }
+                    const colorKey = gemDef.baseGems[0];
+                    const colorDisplayName = COLOR_NAMES[colorKey]?.toLowerCase();
+                    return `Fügt Farbe '${colorDisplayName}' hinzu.`;
                 }
-                return `Edelstein ${gemName}`; // Fallback
+                return `Edelstein ${gemName}`;
         }
     }
 
     updateToolbar() {
         this.gemToolbar.innerHTML = '';
         if (!gameState.difficulty) return;
-
         const placedGemNames = new Set(gameState.playerGems.map(g => g.name));
-
         GEM_SETS[gameState.difficulty].forEach(gemName => {
             const gemDef = GEMS[gemName];
             const div = document.createElement('div');
             div.className = 'toolbar-gem';
-            
-            if (placedGemNames.has(gemName)) {
-                div.classList.add('placed');
-                div.draggable = false;
-            } else {
-                div.draggable = true;
-            }
-
+            if (placedGemNames.has(gemName)) div.classList.add('placed');
             div.dataset.gemName = gemName;
             div.title = this._getGemTooltip(gemName);
-
             const canvas = document.createElement('canvas');
             canvas.className = 'toolbar-gem-canvas';
             div.appendChild(canvas);
             this.gemToolbar.appendChild(div);
-
             setTimeout(() => this.drawToolbarGem(canvas, gemDef), 0);
         });
     }
@@ -294,8 +295,12 @@ export class UI {
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
         const dpr = window.devicePixelRatio || 1;
-        canvas.width = canvas.clientWidth * dpr;
-        canvas.height = canvas.clientHeight * dpr;
+        const rect = canvas.getBoundingClientRect();
+        
+        if (rect.width === 0 || rect.height === 0) return;
+
+        canvas.width = rect.width * dpr;
+        canvas.height = rect.height * dpr;
         ctx.scale(dpr, dpr);
 
         const pattern = gemDef.gridPattern;
@@ -303,10 +308,10 @@ export class UI {
         const pWidth = pattern[0].length;
         const maxDim = Math.max(pWidth, pHeight);
         
-        const cellW = canvas.clientWidth / maxDim;
-        const cellH = canvas.clientHeight / maxDim;
-        const offsetX = (canvas.clientWidth - pWidth * cellW) / 2;
-        const offsetY = (canvas.clientHeight - pHeight * cellH) / 2;
+        const cellW = rect.width / maxDim;
+        const cellH = rect.height / maxDim;
+        const offsetX = (rect.width - pWidth * cellW) / 2;
+        const offsetY = (rect.height - pHeight * cellH) / 2;
 
         for (let r = 0; r < pHeight; r++) {
             for (let c = 0; c < pWidth; c++) {
@@ -319,73 +324,134 @@ export class UI {
     }
     
     redrawAll() {
-        this.gemCtx.clearRect(0, 0, this.gemCanvas.width, this.gemCanvas.height);
-        this._drawGrid(this.gemCtx);
-        this.board.querySelectorAll('.gem-overlay').forEach(o => o.remove());
+        if (this.gemCanvas.width === 0) return; 
+        const ctx = this.gemCtx;
+        ctx.clearRect(0, 0, this.gemCanvas.width, this.gemCanvas.height);
+        
+        this._drawBoardBackgroundAndGrid(ctx);
+        this.emitters.forEach(e => e.draw(ctx));
 
         if(gameState.status === GameStatus.PLAYING) {
-            if (gameState.debugMode) {
-                this.drawDebugSolution(this.gemCtx);
-            } else {
-                this.clearPath();
+            if (gameState.debugMode) this.drawDebugSolution(ctx);
+            
+            this.drawPlayerGems(ctx);
+
+            if (this.isDragging && this.draggedItemInfo) {
+                this.drawDragPreview(ctx);
             }
-            this.drawPlayerGems(this.gemCtx);
-            gameState.playerGems.forEach(gem => this.addGemOverlay(gem));
         }
+        
+        this._drawActiveTooltip(ctx);
     }
+    
+    private drawDragPreview(ctx: CanvasRenderingContext2D) {
+        if (!this.draggedItemInfo) return;
+        const { gridPattern, name, id } = this.draggedItemInfo;
+        const gemDef = GEMS[name];
+        
+        const pWidth = gridPattern[0].length;
+        const pHeight = gridPattern.length;
+        
+        const gridXFloat = (this.dragPos.x / (this.cellWidth + this.gap)) - 1 - (pWidth / 2) + 0.5;
+        const gridYFloat = (this.dragPos.y / (this.cellHeight + this.gap)) - 1 - (pHeight / 2) + 0.5;
+
+        const gridX = Math.round(gridXFloat);
+        const gridY = Math.round(gridYFloat);
+
+        const gemToTest = { id, x: gridX, y: gridY, gridPattern };
+        this.lastValidDropTarget.isValid = this.game.canPlaceGem(gemToTest);
+        this.lastValidDropTarget.x = gridX;
+        this.lastValidDropTarget.y = gridY;
+
+        ctx.save();
+        ctx.globalAlpha = 0.7;
+        for (let r = 0; r < pHeight; r++) {
+            for (let c = 0; c < pWidth; c++) {
+                if (gridPattern[r][c] !== CellState.EMPTY) {
+                    const canvasCoords = this._gridToCanvasCoords(gridX + c, gridY + r);
+                    this.drawCellShape(ctx, canvasCoords.x, canvasCoords.y, this.cellWidth, this.cellHeight, gridPattern[r][c], gemDef.color, !this.lastValidDropTarget.isValid);
+                }
+            }
+        }
+        ctx.restore();
+    }
+
 
     private drawPlayerGems(ctx: CanvasRenderingContext2D) {
         for (const gem of gameState.playerGems) {
+            if (this.isDragging && this.draggedItemInfo?.from === 'board' && this.draggedItemInfo.id === gem.id) continue;
+            
             const { gridPattern, x, y, name } = gem;
             const color = GEMS[name].color;
+            const isInvalid = !gem.isValid;
+            
+            let isHovered = false;
+            if (!this.isDragging) {
+                 isHovered = this.getGemAtCanvasPos(this.dragPos.x, this.dragPos.y)?.id === gem.id;
+            }
+
             for (let r = 0; r < gridPattern.length; r++) {
                 for (let c = 0; c < gridPattern[r].length; c++) {
                     const state = gridPattern[r][c];
                     if (state !== CellState.EMPTY) {
-                        this.drawCellShape(ctx, (x + c) * this.cellWidth, (y + r) * this.cellHeight, this.cellWidth, this.cellHeight, state, color);
+                        const canvasCoords = this._gridToCanvasCoords(x + c, y + r);
+                        this.drawCellShape(ctx, canvasCoords.x, canvasCoords.y, this.cellWidth, this.cellHeight, state, color, isInvalid, isHovered);
                     }
                 }
             }
         }
     }
+    
+    private _drawBoardBackgroundAndGrid(ctx: CanvasRenderingContext2D) {
+        ctx.save();
+        
+        const surfaceColor = getComputedStyle(document.documentElement).getPropertyValue('--surface-color');
+        const borderColor = getComputedStyle(document.documentElement).getPropertyValue('--border-color');
+        
+        ctx.fillStyle = surfaceColor;
+        ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+        
+        ctx.fillStyle = borderColor;
+        ctx.fillRect(this.cellWidth + this.gap/2, this.cellHeight + this.gap/2, 
+                     (GRID_WIDTH) * this.cellWidth + (GRID_WIDTH + 1) * this.gap, 
+                     (GRID_HEIGHT) * this.cellHeight + (GRID_HEIGHT + 1) * this.gap);
 
-    private _drawGrid(ctx: CanvasRenderingContext2D, width?: number, height?: number) {
-        const w = width ?? ctx.canvas.clientWidth;
-        const h = height ?? ctx.canvas.clientHeight;
-        const cellW = w / GRID_WIDTH;
-        const cellH = h / GRID_HEIGHT;
+        ctx.fillStyle = surfaceColor;
+        ctx.fillRect(this.cellWidth + this.gap, this.cellHeight + this.gap, 
+            (GRID_WIDTH) * this.cellWidth + (GRID_WIDTH - 1) * this.gap, 
+            (GRID_HEIGHT) * this.cellHeight + (GRID_HEIGHT - 1) * this.gap);
 
-        ctx.strokeStyle = 'rgba(74, 98, 122, 0.5)';
-        ctx.lineWidth = 1;
+        ctx.strokeStyle = borderColor;
+        ctx.lineWidth = this.gap;
         ctx.beginPath();
-        for (let x = 1; x < GRID_WIDTH; x++) {
-            ctx.moveTo(x * cellW, 0);
-            ctx.lineTo(x * cellW, h);
+        for (let i = 1; i < GRID_WIDTH; i++) {
+            const x = (i+1) * (this.cellWidth + this.gap) - this.gap/2;
+            ctx.moveTo(x, this.cellHeight + this.gap);
+            ctx.lineTo(x, (GRID_HEIGHT+1) * (this.cellHeight + this.gap) );
         }
-        for (let y = 1; y < GRID_HEIGHT; y++) {
-            ctx.moveTo(0, y * cellH);
-            ctx.lineTo(w, y * cellH);
+        for (let i = 1; i < GRID_HEIGHT; i++) {
+            const y = (i+1) * (this.cellHeight + this.gap) - this.gap/2;
+            ctx.moveTo(this.cellWidth + this.gap, y);
+            ctx.lineTo((GRID_WIDTH+1) * (this.cellWidth + this.gap), y);
         }
         ctx.stroke();
+        
+        ctx.restore();
     }
 
     private drawDebugSolution(ctx: CanvasRenderingContext2D) {
         if (!this.game.secretGrid || gameState.secretGems.length === 0) return;
-        const grid = this.game.secretGrid;
-    
         ctx.save();
         ctx.globalAlpha = 0.2;
-        for (let y = 0; y < GRID_HEIGHT; y++) {
-            for (let x = 0; x < GRID_WIDTH; x++) {
-                const state = grid[y][x];
-                if (state !== CellState.EMPTY) {
-                    const gem = gameState.secretGems.find(g =>
-                        x >= g.x && x < g.x + g.gridPattern[0].length &&
-                        y >= g.y && y < g.y + g.gridPattern.length &&
-                        g.gridPattern[y - g.y][x - g.x] === state
-                    );
-                    if (gem) {
-                        this.drawCellShape(ctx, x * this.cellWidth, y * this.cellHeight, this.cellWidth, this.cellHeight, state, GEMS[gem.name].color);
+        for (const gem of gameState.secretGems) {
+             const { gridPattern, x, y, name } = gem;
+             const color = GEMS[name].color;
+             for (let r = 0; r < gridPattern.length; r++) {
+                for (let c = 0; c < gridPattern[r].length; c++) {
+                    const state = gridPattern[r][c];
+                    if (state !== CellState.EMPTY) {
+                        const canvasCoords = this._gridToCanvasCoords(x, y);
+                        this.drawCellShape(ctx, canvasCoords.x + c * (this.cellWidth), canvasCoords.y + r * (this.cellHeight), this.cellWidth, this.cellHeight, state, color);
                     }
                 }
             }
@@ -393,10 +459,10 @@ export class UI {
         ctx.restore();
     }
     
-    private drawCellShape(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, state: CellState, color: string, isInvalid = false) {
+    private drawCellShape(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, state: CellState, color: string, isInvalid = false, isHovered = false) {
         ctx.save();
         if (color === COLORS.TRANSPARENT) {
-            ctx.fillStyle = 'transparent';
+            ctx.fillStyle = 'rgba(164, 212, 228, 0.3)';
             ctx.strokeStyle = '#a4d4e4';
             ctx.lineWidth = 2;
         } else {
@@ -406,56 +472,80 @@ export class UI {
         }
     
         if (isInvalid) {
+            ctx.fillStyle = 'rgba(231, 76, 60, 0.5)';
             ctx.strokeStyle = COLORS.INVALID_GEM;
             ctx.lineWidth = 2;
-            ctx.setLineDash([4, 4]);
+        }
+        if (isHovered && !isInvalid) {
+             ctx.shadowColor = 'white';
+             ctx.shadowBlur = 10;
         }
     
         ctx.beginPath();
+        const path = new Path2D();
         switch (state) {
             case CellState.BLOCK:
             case CellState.ABSORB:
-                ctx.rect(x, y, w, h);
-                break;
+                path.rect(x, y, w, h); break;
             case CellState.TRIANGLE_TL:
-                ctx.moveTo(x, y); ctx.lineTo(x + w, y); ctx.lineTo(x, y + h); ctx.closePath();
-                break;
+                path.moveTo(x, y); path.lineTo(x + w, y); path.lineTo(x, y + h); path.closePath(); break;
             case CellState.TRIANGLE_TR:
-                ctx.moveTo(x, y); ctx.lineTo(x + w, y); ctx.lineTo(x + w, y + h); ctx.closePath();
-                break;
+                path.moveTo(x, y); path.lineTo(x + w, y); path.lineTo(x + w, y + h); path.closePath(); break;
             case CellState.TRIANGLE_BR:
-                ctx.moveTo(x + w, y); ctx.lineTo(x + w, y + h); ctx.lineTo(x, y + h); ctx.closePath();
-                break;
+                path.moveTo(x + w, y); path.lineTo(x + w, y + h); path.lineTo(x, y + h); path.closePath(); break;
             case CellState.TRIANGLE_BL:
-                ctx.moveTo(x, y); ctx.lineTo(x, y + h); ctx.lineTo(x + w, y + h); ctx.closePath();
-                break;
+                path.moveTo(x, y); path.lineTo(x, y + h); path.lineTo(x + w, y + h); path.closePath(); break;
         }
-        ctx.fill();
-        ctx.stroke();
+        ctx.fill(path);
+        ctx.stroke(path);
         ctx.restore();
     }
     
-    private addGemOverlay(gem: Gem) {
-        if (!this.board.clientWidth) return;
-        
-        const div = document.createElement('div');
-        div.id = gem.id;
-        div.className = 'gem-overlay';
-        div.draggable = true;
+    private _drawActiveTooltip(ctx: CanvasRenderingContext2D) {
+        if (!this.activeTooltip) return;
+        const { x, y, width, height, text } = this.activeTooltip;
 
-        const pHeight = gem.gridPattern.length;
-        const pWidth = gem.gridPattern[0].length;
-
-        div.style.left = `${gem.x * this.cellWidth}px`;
-        div.style.top = `${gem.y * this.cellHeight}px`;
-        div.style.width = `${pWidth * this.cellWidth}px`;
-        div.style.height = `${pHeight * this.cellHeight}px`;
+        ctx.save();
+        ctx.font = 'bold 14px sans-serif';
+        const textMetrics = ctx.measureText(text);
+        const textWidth = textMetrics.width;
+        const textHeight = 14; 
+        const padding = 8;
         
-        if (!gem.isValid) {
-            div.classList.add('invalid-pos');
+        let tooltipX = x + width / 2 - (textWidth/2 + padding);
+        let tooltipY = y - textHeight - padding * 2;
+
+        if (tooltipY < 0) tooltipY = y + height + padding;
+        if (tooltipX < 0) tooltipX = padding;
+        if (tooltipX + textWidth + padding * 2 > ctx.canvas.width / (window.devicePixelRatio || 1) ) {
+            tooltipX = ctx.canvas.width / (window.devicePixelRatio || 1) - textWidth - padding * 2;
         }
-        
-        this.board.appendChild(div);
+
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+        const path = new Path2D();
+        path.roundRect(tooltipX, tooltipY, textWidth + padding * 2, textHeight + padding, 5);
+        ctx.fill(path);
+
+        ctx.fillStyle = 'white';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(text, tooltipX + textWidth/2 + padding, tooltipY + textHeight/2 + padding/2);
+        ctx.restore();
+    }
+
+
+    private _gridToCanvasCoords(gridX: number, gridY: number): { x: number; y: number } {
+        return {
+            x: (gridX + 1) * (this.cellWidth + this.gap),
+            y: (gridY + 1) * (this.cellHeight + this.gap),
+        };
+    }
+
+    private _canvasToGridCoords(canvasX: number, canvasY: number): { x: number; y: number } {
+        return {
+            x: Math.floor(canvasX / (this.cellWidth + this.gap)) - 1,
+            y: Math.floor(canvasY / (this.cellHeight + this.gap)) - 1,
+        }
     }
     
     private getPathColor(result: { colors: string[], absorbed?: boolean }): string {
@@ -466,28 +556,43 @@ export class UI {
     }
 
     public showWavePath(result: { path: {x:number, y:number}[], colors: string[], absorbed?: boolean }) {
+        this.clearPath();
         if (!gameState.debugMode) return;
+        
         const color = this.getPathColor(result);
         this.drawPath(result.path, color);
     }
 
     private drawPath(path: {x:number, y:number}[], color: string) {
-        this.clearPath();
         if (path.length < 2) return;
     
-        this.pathCtx.strokeStyle = color;
-        this.pathCtx.lineWidth = 3;
-        this.pathCtx.lineCap = 'round';
-        this.pathCtx.lineJoin = 'round';
-        this.pathCtx.shadowColor = 'rgba(0,0,0,0.5)';
-        this.pathCtx.shadowBlur = 5;
+        const ctx = this.pathCtx;
+        this.clearPath();
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 3;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.shadowColor = 'rgba(0,0,0,0.5)';
+        ctx.shadowBlur = 5;
+        ctx.beginPath();
     
-        this.pathCtx.beginPath();
-        this.pathCtx.moveTo(path[0].x * this.cellWidth, path[0].y * this.cellHeight);
+        const gridStartX = this.cellWidth + this.gap;
+        const gridStartY = this.cellHeight + this.gap;
+        const stepX = this.cellWidth + this.gap;
+        const stepY = this.cellHeight + this.gap;
+
+        const p2c = (p: {x: number, y: number}) => {
+            const canvasX = gridStartX + p.x * stepX;
+            const canvasY = gridStartY + p.y * stepY;
+            return { x: canvasX, y: canvasY };
+        };
+        
+        const firstPoint = p2c(path[0]);
+        ctx.moveTo(firstPoint.x, firstPoint.y);
         for (let i = 1; i < path.length; i++) {
-            this.pathCtx.lineTo(path[i].x * this.cellWidth, path[i].y * this.cellHeight);
+            ctx.lineTo(p2c(path[i]).x, p2c(path[i]).y);
         }
-        this.pathCtx.stroke();
+        ctx.stroke();
     }
 
     private clearPath() {
@@ -500,54 +605,35 @@ export class UI {
         document.getElementById(`${tabName}-panel`)!.classList.add('active');
     }
 
-    updateEmitterState(emitterId: string, result: any) {
-        const getContrast = (hex: string) => {
-            if (!hex || hex.length < 7) return '#ffffff';
-            const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
-            return (r*0.299 + g*0.587 + b*0.114) > 186 ? '#000000' : '#ffffff';
-        };
-
-        const color = this.getPathColor(result);
-        
-        const startEl = this.boardWrapper.querySelector(`.emitter[data-id="${emitterId}"]`) as HTMLElement;
-        if(startEl) {
-            startEl.classList.add('used');
-            startEl.style.backgroundColor = color;
-            startEl.style.color = getContrast(color);
-        }
-        if(result.exitId) {
-            const endEl = this.boardWrapper.querySelector(`.emitter[data-id="${result.exitId}"]`) as HTMLElement;
-            if(endEl) {
-                endEl.style.backgroundColor = color;
-                endEl.style.color = getContrast(color);
-            }
-        }
-    }
-
     addLogEntry(logEntry: LogEntry, waveId: string) {
         const li = document.createElement('li');
         li.dataset.waveId = waveId;
-        
         const { result } = logEntry;
         const resultText = `${waveId} ➔ ${result.exitId}`;
         const resultColor = this.getPathColor(result);
         const colorName = this._getPathColorName(result);
-
-        li.innerHTML = `<span>${resultText}</span>
-                        <div class="log-entry-result">
-                            <span class="log-color-name">${colorName}</span>
-                            <div class="log-color-box" style="background-color: ${resultColor};"></div>
-                        </div>`;
+        li.innerHTML = `<span>${resultText}</span><div class="log-entry-result"><span class="log-color-name">${colorName}</span><div class="log-color-box" style="background-color: ${resultColor};"></div></div>`;
         this.logList.prepend(li);
         this.switchTab('log');
+
+        const startEmitter = this.emitters.find(e => e.id === waveId);
+        if (startEmitter) {
+            startEmitter.isUsed = true;
+            startEmitter.usedColor = resultColor;
+        }
+        if (result.exitId && result.exitId !== 'Loop?') {
+             const endEmitter = this.emitters.find(e => e.id === result.exitId);
+             if (endEmitter) {
+                endEmitter.isUsed = true;
+                endEmitter.usedColor = resultColor;
+             }
+        }
+        this.redrawAll();
     }
     
     showEndScreen(isWin: boolean, waveCount: number, secretGems: Gem[], playerGems: Gem[]) {
         this.endTitle.textContent = isWin ? 'Gewonnen!' : 'Verloren!';
-        this.endStats.textContent = isWin 
-            ? `Du hast die Mine in ${waveCount} Abfragen gelöst!`
-            : `Du hast ${waveCount} Abfragen gebraucht.`;
-        
+        this.endStats.textContent = isWin ? `Du hast die Mine in ${waveCount} Abfragen gelöst!` : `Du hast ${waveCount} Abfragen gebraucht.`;
         this.showScreen('end');
         requestAnimationFrame(() => {
             const playerSolutionToShow = isWin ? [] : playerGems;
@@ -559,178 +645,306 @@ export class UI {
         const canvas = ctx.canvas;
         const dpr = window.devicePixelRatio || 1;
         const rect = canvas.getBoundingClientRect();
-    
-        if (rect.width === 0 || rect.height === 0) return;
-    
+        if (rect.width === 0) return;
         canvas.width = rect.width * dpr;
         canvas.height = rect.height * dpr;
         ctx.scale(dpr, dpr);
         ctx.clearRect(0, 0, rect.width, rect.height);
         
-        this._drawGrid(ctx, rect.width, rect.height);
-    
-        const cellW = rect.width / GRID_WIDTH;
-        const cellH = rect.height / GRID_HEIGHT;
-        
-        this.drawGemSet(ctx, correctGems, { cellW, cellH, opacity: 1.0 });
-    
-        if (playerGems.length > 0) {
-            this.drawGemSet(ctx, playerGems, { cellW, cellH, opacity: 0.55, highlightInvalid: true });
-        }
+        const cellW = (rect.width - (GRID_WIDTH - 1) * 1) / GRID_WIDTH;
+        const cellH = (rect.height - (GRID_HEIGHT - 1) * 1) / GRID_HEIGHT;
+
+        ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--surface-color');
+        ctx.fillRect(0,0, rect.width, rect.height);
+        this.drawGemSet(ctx, correctGems, { cellW, cellH, gap: 1, opacity: 1.0, highlightInvalid: false });
+        if (playerGems.length > 0) this.drawGemSet(ctx, playerGems, { cellW, cellH, gap: 1, opacity: 0.55, highlightInvalid: true });
     }
     
-    private drawGemSet(
-        ctx: CanvasRenderingContext2D, 
-        gems: Gem[], 
-        options: { cellW: number, cellH: number, opacity: number, highlightInvalid?: boolean }
-    ) {
+    private drawGemSet(ctx: CanvasRenderingContext2D, gems: Gem[], opts: { cellW: number, cellH: number, gap: number, opacity: number, highlightInvalid?: boolean }) {
         ctx.save();
-        ctx.globalAlpha = options.opacity;
-        
+        ctx.globalAlpha = opts.opacity;
         for (const gem of gems) {
-            const { gridPattern, x, y, name } = gem;
-            const color = GEMS[name].color;
-            const shouldHighlight = !!options.highlightInvalid && !gem.isValid;
-            
-            for (let r = 0; r < gridPattern.length; r++) {
-                for (let c = 0; c < gridPattern[r].length; c++) {
-                    const state = gridPattern[r][c];
+            const color = GEMS[gem.name].color;
+            const shouldHighlight = !!opts.highlightInvalid && !gem.isValid;
+            for (let r = 0; r < gem.gridPattern.length; r++) {
+                for (let c = 0; c < gem.gridPattern[r].length; c++) {
+                    const state = gem.gridPattern[r][c];
                     if (state !== CellState.EMPTY) {
-                        this.drawCellShape(
-                            ctx, 
-                            (x + c) * options.cellW, 
-                            (y + r) * options.cellH, 
-                            options.cellW, options.cellH, 
-                            state, color, 
-                            shouldHighlight
-                        );
+                        const canvasX = gem.x * (opts.cellW + opts.gap) + c * opts.cellW;
+                        const canvasY = gem.y * (opts.cellH + opts.gap) + r * opts.cellH;
+                        this.drawCellShape(ctx, canvasX, canvasY, opts.cellW, opts.cellH, state, color, shouldHighlight);
                     }
                 }
             }
         }
-        
         ctx.restore();
     }
-
-    private handleDragStart(e: DragEvent) {
-        const target = e.target as HTMLElement;
-        if (!e.dataTransfer || !target.draggable) return;
     
-        const toolbarGemEl = target.closest('.toolbar-gem') as HTMLElement | null;
-        const boardGemEl = target.closest('.gem-overlay') as HTMLElement | null;
-        let info;
-    
-        if (toolbarGemEl) {
-            const gemName = toolbarGemEl.dataset.gemName!;
-            info = { id: gemName, name: gemName, from: 'toolbar' as const, gridPattern: GEMS[gemName].gridPattern, element: toolbarGemEl };
-        } else if (boardGemEl) {
-            const gem = gameState.playerGems.find(g => g.id === boardGemEl.id);
-            if (!gem) return;
-            info = { id: gem.id, name: gem.name, from: 'board' as const, gridPattern: gem.gridPattern, element: boardGemEl };
-        } else {
+    private handleCanvasClick(e: MouseEvent) {
+        if (this.justDragged) {
+            // This flag is set by handleMouseUp after a drag.
+            // It's reset by a timeout, so we just ignore this single click event.
             return;
         }
-        
-        e.dataTransfer.effectAllowed = 'move';
-        e.dataTransfer.setData('text/plain', info.id);
-        this.draggedItemInfo = info;
-    
-        setTimeout(() => {
-            info.element.classList.add('dragging');
-        }, 0);
-    
-        e.dataTransfer.setDragImage(new Image(), 0, 0);
-    
-        const pWidth = info.gridPattern[0].length;
-        const pHeight = info.gridPattern.length;
-        this.dragPreviewEl.style.width = `${pWidth * this.cellWidth}px`;
-        this.dragPreviewEl.style.height = `${pHeight * this.cellHeight}px`;
-        this.dragPreviewEl.style.display = 'block';
 
-        const dpr = window.devicePixelRatio || 1;
-        this.dragPreviewCanvas.width = pWidth * this.cellWidth * dpr;
-        this.dragPreviewCanvas.height = pHeight * this.cellHeight * dpr;
-        this.dragPreviewCtx.scale(dpr, dpr);
-        
-        const gemDef = GEMS[info.name];
-        for (let r = 0; r < pHeight; r++) {
-            for (let c = 0; c < pWidth; c++) {
-                const state = info.gridPattern[r][c];
-                if (state !== CellState.EMPTY) {
-                    this.drawCellShape(this.dragPreviewCtx, c * this.cellWidth, r * this.cellHeight, this.cellWidth, this.cellHeight, state, gemDef.color);
-                }
+        const rect = this.gemCanvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+
+        const clickedEmitter = this.emitters.find(em => em.isInside(x, y));
+        if (clickedEmitter) {
+            if (!clickedEmitter.isUsed) {
+                this.game.sendWave(clickedEmitter.id);
             }
+            return;
+        }
+
+        const clickedGem = this.getGemAtCanvasPos(x, y);
+        if (clickedGem) {
+            this.game.rotatePlayerGem(clickedGem.id);
         }
     }
 
-    private handleDragOver(e: DragEvent) {
-        if (!this.draggedItemInfo) return;
-        e.preventDefault();
-        
-        const boardRect = this.board.getBoundingClientRect();
-        const x = e.clientX - boardRect.left;
-        const y = e.clientY - boardRect.top;
-        
-        const pWidth = this.draggedItemInfo.gridPattern[0].length;
-        const pHeight = this.draggedItemInfo.gridPattern.length;
-        const gridX = Math.round(x / this.cellWidth - pWidth / 2);
-        const gridY = Math.round(y / this.cellHeight - pHeight / 2);
-    
-        const previewX = this.board.offsetLeft + gridX * this.cellWidth;
-        const previewY = this.board.offsetTop + gridY * this.cellHeight;
-        this.dragPreviewEl.style.transform = `translate(${previewX}px, ${previewY}px)`;
-
-        const gemToTest = { ...this.draggedItemInfo, x: gridX, y: gridY };
-        const isValid = this.game.canPlaceGem(gemToTest);
-    
-        this.lastValidDropTarget = { x: gridX, y: gridY, isValid };
-    
-        this.dragPreviewEl.classList.toggle('valid-pos', isValid);
-        this.dragPreviewEl.classList.toggle('invalid-pos', !isValid);
+    private clearAllHighlightsAndTooltips() {
+        if (this.tooltipTimer) {
+            clearTimeout(this.tooltipTimer);
+            this.tooltipTimer = null;
+        }
+        this.activeTooltip = null;
+        this.emitters.forEach(e => {
+            if(e.state === 'highlight') e.state = 'normal';
+        });
     }
+    
+    // This method now only handles hover effects, not dragging.
+    private handleCanvasHover(e: MouseEvent) {
+        if (this.isDragging) return; // Don't process hovers while a drag is active
 
-    private handleDrop(e: DragEvent) {
-        if (!this.draggedItemInfo) return;
-        e.preventDefault();
+        const rect = this.gemCanvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        this.dragPos = { x, y }; // Still useful for gem hover highlights
 
-        const boardRect = this.board.getBoundingClientRect();
-        const isOutside = e.clientX < boardRect.left || e.clientX > boardRect.right || e.clientY < boardRect.top || e.clientY > boardRect.bottom;
+        const emitter = this.emitters.find(em => em.isInside(x,y));
+
+        if (this.currentHoveredEmitter === emitter) {
+            return; 
+        }
+
+        if(this.currentHoveredEmitter) {
+            this.currentHoveredEmitter.isHovered = false;
+        }
+        this.clearAllHighlightsAndTooltips();
         
-        if (isOutside) {
-            if (this.draggedItemInfo.from === 'board') {
-                this.game.removePlayerGem(this.draggedItemInfo.id);
-            }
-        } else {
-            const { x, y } = this.lastValidDropTarget;
-            if (this.draggedItemInfo.from === 'toolbar') {
-                this.game.addPlayerGem(this.draggedItemInfo.name, x, y);
-            } else {
-                this.game.movePlayerGem(this.draggedItemInfo.id, x, y);
+        this.currentHoveredEmitter = emitter || null;
+
+        if (this.currentHoveredEmitter) {
+            this.currentHoveredEmitter.isHovered = true;
+            if (this.currentHoveredEmitter.isUsed) {
+                this.tooltipTimer = window.setTimeout(() => this._showHoverTooltip(this.currentHoveredEmitter!.id), 750);
             }
         }
-        
-        this.handleDragEnd();
-    }
-
-    private handleDragEnd() {
-        if (!this.draggedItemInfo) return;
-    
-        this.dragPreviewEl.style.display = 'none';
-        this.dragPreviewEl.classList.remove('valid-pos', 'invalid-pos');
-        
-        this.draggedItemInfo = null;
         
         this.redrawAll();
     }
     
-    private handleBoardClick(e: MouseEvent) {
-        const target = e.target;
-        if (!(target instanceof Element) || this.draggedItemInfo) return;
-        
-        const overlay = target.closest('.gem-overlay');
-        if (overlay) {
-            this.game.rotatePlayerGem(overlay.id);
+    private handleCanvasMouseLeave() {
+        this.dragPos = {x: -1, y: -1};
+        if (this.currentHoveredEmitter) {
+            this.currentHoveredEmitter.isHovered = false;
+            this.currentHoveredEmitter = null;
         }
+        this.clearAllHighlightsAndTooltips();
+        this.redrawAll();
+    }
+    
+    private _showHoverTooltip(emitterId: string) {
+        this.tooltipTimer = null;
+        const logEntry = gameState.log.find(l => l.waveId === emitterId || l.result.exitId === emitterId);
+        if (!logEntry) return;
+
+        const startEmitter = this.emitters.find(e => e.id === logEntry.waveId);
+        const endEmitter = this.emitters.find(e => e.id === logEntry.result.exitId);
+        
+        if (!startEmitter || !endEmitter) return;
+        
+        const colorName = this._getPathColorName(logEntry.result);
+        const partnerId = startEmitter.id === emitterId ? endEmitter.id : startEmitter.id;
+        
+        startEmitter.state = 'highlight';
+        endEmitter.state = 'highlight';
+        
+        const triggerEmitter = this.emitters.find(e => e.id === emitterId)!;
+
+        this.activeTooltip = {
+            text: `${colorName} ➔ ${partnerId}`,
+            x: triggerEmitter.rect.x,
+            y: triggerEmitter.rect.y,
+            width: triggerEmitter.rect.width,
+            height: triggerEmitter.rect.height,
+            emitter1Id: startEmitter.id,
+            emitter2Id: endEmitter.id
+        };
+        
+        this.redrawAll();
+    }
+
+
+    private handleCanvasKeyDown(e: KeyboardEvent) {
+        if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '].includes(e.key)) return;
+        e.preventDefault();
+        
+        const currentFocused = this.emitters.find(em => em.id === this.focusedEmitterId);
+        if (currentFocused) currentFocused.state = 'normal';
+
+        if (e.key === 'Enter' || e.key === ' ') {
+            if (this.focusedEmitterId) {
+                const focusedEmitter = this.emitters.find(em => em.id === this.focusedEmitterId);
+                if (focusedEmitter && !focusedEmitter.isUsed) {
+                    this.game.sendWave(this.focusedEmitterId);
+                }
+            }
+            if(currentFocused) currentFocused.state = 'focused';
+            this.redrawAll();
+            return;
+        }
+
+        const focusedIndex = this.emitters.findIndex(em => em.id === this.focusedEmitterId);
+        if (focusedIndex === -1) return;
+        
+        let nextIndex = -1;
+
+        switch (e.key) {
+            case 'ArrowRight': nextIndex = (focusedIndex + 1) % this.emitters.length; break;
+            case 'ArrowLeft': nextIndex = (focusedIndex - 1 + this.emitters.length) % this.emitters.length; break;
+            case 'ArrowUp': nextIndex = (focusedIndex - 1 + this.emitters.length) % this.emitters.length; break;
+            case 'ArrowDown': nextIndex = (focusedIndex + 1) % this.emitters.length; break;
+        }
+        
+        if (nextIndex !== -1) {
+            this.focusedEmitterId = this.emitters[nextIndex].id;
+            const next = this.emitters[nextIndex];
+            if (next) next.state = 'focused';
+            this.redrawAll();
+        }
+    }
+    
+    private handleMouseDown(e: MouseEvent) {
+        if (e.button !== 0) return; // Only main button
+
+        const target = e.target as HTMLElement;
+        const toolbarGemEl = target.closest('.toolbar-gem:not(.placed)');
+        const canvasRect = this.gemCanvas.getBoundingClientRect();
+        const isOverCanvas = e.clientX >= canvasRect.left && e.clientX <= canvasRect.right && e.clientY >= canvasRect.top && e.clientY <= canvasRect.bottom;
+        
+        let potentialDragItem: DragInfo | null = null;
+        
+        if (toolbarGemEl) {
+            const name = (toolbarGemEl as HTMLElement).dataset.gemName!;
+            potentialDragItem = { name, from: 'toolbar', gridPattern: GEMS[name].gridPattern, element: (toolbarGemEl as HTMLElement), offsetX: e.offsetX, offsetY: e.offsetY };
+        } else if (isOverCanvas) {
+            const x = e.clientX - canvasRect.left;
+            const y = e.clientY - canvasRect.top;
+            const gem = this.getGemAtCanvasPos(x, y);
+            if (gem) {
+                const gridCoords = this._canvasToGridCoords(x, y);
+                potentialDragItem = { id: gem.id, name: gem.name, from: 'board', gridPattern: gem.gridPattern, offsetX: (gridCoords.x - gem.x) * this.cellWidth, offsetY: (gridCoords.y - gem.y) * this.cellHeight };
+            }
+        }
+        
+        if (potentialDragItem) {
+            this.dragStartInfo = {
+                item: potentialDragItem,
+                startX: e.clientX,
+                startY: e.clientY
+            };
+        }
+    }
+
+    private handleMouseMove(e: MouseEvent) {
+        if (this.dragStartInfo) {
+            // Check if we should start dragging
+            if (!this.isDragging) {
+                const dx = e.clientX - this.dragStartInfo.startX;
+                const dy = e.clientY - this.dragStartInfo.startY;
+                if (Math.sqrt(dx * dx + dy * dy) > 5) { // Drag threshold
+                    this.isDragging = true;
+                    this.draggedItemInfo = this.dragStartInfo.item;
+                    if(this.draggedItemInfo.element) {
+                        this.draggedItemInfo.element.classList.add('dragging');
+                    }
+                }
+            }
+
+            if (this.isDragging) {
+                const canvasRect = this.gemCanvas.getBoundingClientRect();
+                this.dragPos = { x: e.clientX - canvasRect.left, y: e.clientY - canvasRect.top };
+                this.redrawAll();
+            }
+        } else {
+            // Standard hover logic when not about to drag
+            const isOverCanvas = e.target === this.gemCanvas;
+            if (isOverCanvas) {
+                this.handleCanvasHover(e);
+            } else {
+                this.handleCanvasMouseLeave();
+            }
+        }
+    }
+    
+    private handleMouseUp(e: MouseEvent) {
+        if (this.isDragging && this.draggedItemInfo) {
+            // This flag prevents the 'click' event that fires after a drag-drop
+            // from being interpreted as a gem rotation.
+            this.justDragged = true;
+            // Use a timeout to reset the flag shortly after, so the next
+            // intended click by the user is not swallowed.
+            setTimeout(() => { this.justDragged = false; }, 0);
+
+            const canvasRect = this.gemCanvas.getBoundingClientRect();
+            const isOverCanvas = e.clientX >= canvasRect.left && e.clientX <= canvasRect.right && e.clientY >= canvasRect.top && e.clientY <= canvasRect.bottom;
+            
+            if (isOverCanvas) {
+                if (this.lastValidDropTarget.isValid) {
+                    const { x, y } = this.lastValidDropTarget;
+                    if (this.draggedItemInfo.from === 'toolbar') {
+                        this.game.addPlayerGem(this.draggedItemInfo.name, x, y);
+                    } else if (this.draggedItemInfo.id) {
+                        this.game.movePlayerGem(this.draggedItemInfo.id, x, y);
+                    }
+                }
+            } else {
+                if (this.draggedItemInfo.from === 'board' && this.draggedItemInfo.id) {
+                    this.game.removePlayerGem(this.draggedItemInfo.id);
+                }
+            }
+        }
+
+        // Reset all drag-related state
+        if (this.dragStartInfo?.item.element) {
+            this.dragStartInfo.item.element.classList.remove('dragging');
+        }
+        this.dragStartInfo = null;
+        this.isDragging = false;
+        this.draggedItemInfo = null;
+        this.redrawAll();
+        this.updateToolbar();
+    }
+
+    private getGemAtCanvasPos(canvasX: number, canvasY: number): Gem | null {
+        if(canvasX < 0 || canvasY < 0) return null;
+        const { x, y } = this._canvasToGridCoords(canvasX, canvasY);
+        for (let i = gameState.playerGems.length - 1; i >= 0; i--) {
+            const gem = gameState.playerGems[i];
+            const pHeight = gem.gridPattern.length;
+            const pWidth = gem.gridPattern[0].length;
+            if (x >= gem.x && x < gem.x + pWidth && y >= gem.y && y < gem.y + pHeight) {
+                if (gem.gridPattern[y - gem.y][x - gem.x] !== CellState.EMPTY) {
+                     return gem;
+                }
+            }
+        }
+        return null;
     }
 
     private _getPathColorName(result: { colors: string[], absorbed?: boolean }): string {
@@ -739,57 +953,39 @@ export class UI {
         const key = [...result.colors].sort().join(',');
         return COLOR_NAMES[key] || 'Unbekannte Mischung';
     }
-
-    private handleEmitterHover(e: MouseEvent) {
-        const target = e.target as HTMLElement;
-        if (!target.classList.contains('emitter')) return;
-
-        const emitterId = target.dataset.id;
-        if (!emitterId) return;
-
-        const logEntry = gameState.log.find(
-            entry => entry.waveId === emitterId || entry.result.exitId === emitterId
-        );
-
-        if (!logEntry) return;
-
-        const colorName = this._getPathColorName(logEntry.result);
-        const startId = logEntry.waveId;
-        const endId = logEntry.result.exitId;
-
-        const startEl = this.boardWrapper.querySelector(`.emitter[data-id="${startId}"]`);
-        const endEl = this.boardWrapper.querySelector(`.emitter[data-id="${endId}"]`);
-
-        if (startEl && endEl) {
-            const highlightClass = 'highlight-pair';
-            startEl.classList.add(highlightClass);
-            endEl.classList.add(highlightClass);
-            (startEl as HTMLElement).title = colorName;
-            (endEl as HTMLElement).title = colorName;
-        }
-    }
-
-    private handleEmitterMouseOut(e: MouseEvent) {
-        const target = e.target as HTMLElement;
-        if (target.classList.contains('emitter')) {
-             this.boardWrapper.querySelectorAll('.emitter').forEach(el => {
-                el.classList.remove('highlight-pair');
-                (el as HTMLElement).title = '';
-            });
-        }
-    }
-
-    private handleLogPress(e: Event) {
+    
+    private handleLogHover(e: MouseEvent) {
         const target = e.target;
         if (!(target instanceof Element)) return;
-        const li = target.closest('li');
-        if (!li) return;
-        const waveId = (li as HTMLElement).dataset.waveId;
-        const entry = gameState.log.find(l => l.waveId === waveId);
-        if (entry) {
-            const color = this.getPathColor(entry.result);
-            this.drawPath(entry.path, color);
+        const li = target.closest('li[data-wave-id]');
+        
+        this.clearAllHighlightsAndTooltips();
+
+        if (li) {
+            li.classList.add('highlight-pair');
+            const waveId = (li as HTMLElement).dataset.waveId!;
+            const entry = gameState.log.find(l => l.waveId === waveId);
+            if (entry) {
+                if (gameState.debugMode) {
+                    this.drawPath(entry.path, this.getPathColor(entry.result));
+                }
+                const startEmitter = this.emitters.find(em => em.id === entry.waveId);
+                if (startEmitter) startEmitter.state = 'highlight';
+                
+                if (entry.result.exitId) {
+                    const endEmitter = this.emitters.find(em => em.id === entry.result.exitId);
+                    if (endEmitter) endEmitter.state = 'highlight';
+                }
+            }
         }
+        this.redrawAll();
+    }
+
+    private handleLogLeave() {
+        this.clearPath();
+        document.querySelectorAll('#log-list li.highlight-pair').forEach(el => el.classList.remove('highlight-pair'));
+        this.clearAllHighlightsAndTooltips();
+        this.redrawAll();
     }
     
     private _populateIntroRules() {

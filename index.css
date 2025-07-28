@@ -1,5 +1,3 @@
-
-
 :root {
     --bg-color: #2c3e50;
     --surface-color: #34495e;
@@ -7,9 +5,9 @@
     --primary-hover: #2980b9;
     --secondary-color: #e67e22;
     --text-color: #ecf0f1;
-    --border-color: #4a627a;
+    --border-color: #22303F; 
     --invalid-color: #e74c3c;
-    --correct-color: #2ecc71; /* Green for correct placement */
+    --correct-color: #2ecc71; 
     --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 
     --white-gem: #ffffff;
@@ -36,11 +34,11 @@ html, body {
 }
 
 #app {
-    position: relative; /* Set as positioning context for absolute screens */
+    position: relative; 
     display: flex;
     flex-direction: column;
     height: 100vh;
-    max-height: 100vh; /* iOS Safari fix */
+    max-height: 100vh; 
     max-width: 550px;
     margin: 0 auto;
     background-color: var(--surface-color);
@@ -48,7 +46,7 @@ html, body {
     overflow: hidden;
 }
 
-/* --- Screen Management (Absolute Positioning Strategy) --- */
+/* --- Screen Management --- */
 .screen {
     position: absolute;
     top: 0;
@@ -62,19 +60,16 @@ html, body {
     padding: 1.5rem;
     background: url('https://www.transparenttextures.com/patterns/low-contrast-linen.png'), var(--bg-color);
     
-    /* Transition properties for visible state */
     opacity: 1;
     transform: scale(1);
     transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
 }
 .screen.hidden {
-    /* Use visibility for transitions and to keep it out of layout influence */
     visibility: hidden;
     opacity: 0;
     transform: scale(0.95);
     pointer-events: none;
 }
-/* Utility class for screens that NEED vertical centering */
 .screen-v-center {
     justify-content: center;
 }
@@ -195,107 +190,42 @@ html, body {
 
 #game-board-wrapper {
     position: relative;
-    display: grid;
-    grid-template-columns: 1fr 8fr 1fr;
-    grid-template-rows: 1fr 10fr 1fr;
-    grid-template-areas:
-        ". top ."
-        "left board right"
-        ". bottom .";
     width: 100%;
     aspect-ratio: 10 / 12;
     max-width: 450px;
     margin: auto;
 }
 
-.emitters-top    { grid-area: top; display: flex; }
-.emitters-bottom { grid-area: bottom; display: flex; }
-.emitters-left   { grid-area: left; display: flex; flex-direction: column; }
-.emitters-right  { grid-area: right; display: flex; flex-direction: column; }
-
-.emitter {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    background-color: #4a627a;
-    color: white;
-    border: 1px solid var(--bg-color);
-    cursor: pointer;
-    font-size: 1rem; /* Increased font size */
-    font-weight: bold;
-    flex-grow: 1;
-    transition: background-color 0.3s, color 0.3s;
-    -webkit-tap-highlight-color: transparent;
-    padding: 0;
-}
-.emitter.used {
-    background-color: #7f8c8d;
-}
-
-#game-board {
-    grid-area: board;
-    position: relative;
-    border: 2px solid var(--bg-color); /* Border moved here for alignment */
-    background-color: rgba(0,0,0,0.1);
-}
-
-#gem-canvas, #path-overlay, #drag-preview {
+#gem-canvas, #path-overlay {
     position: absolute;
     top: 0; left: 0;
     width: 100%; height: 100%;
+}
+/* The main canvas handles all drawing and interaction */
+#gem-canvas {
+    z-index: 1;
+    cursor: pointer;
+}
+/* Add an outline for keyboard navigation accessibility */
+#gem-canvas:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+    border-radius: 2px;
+}
+
+/* The path overlay is purely visual and should not intercept mouse events */
+#path-overlay {
+    z-index: 100;
     pointer-events: none;
 }
 
-#gem-canvas { z-index: 2; }
-#path-overlay { z-index: 100; }
-
-#drag-preview {
-    z-index: 101;
-    opacity: 0.7;
-    transition: outline 0.1s ease-in-out;
-    display: none; /* Hidden by default */
-}
-
-#drag-preview.valid-pos {
-    outline: 3px solid var(--correct-color);
-    outline-offset: 1px;
-}
-#drag-preview.invalid-pos {
-    outline: 3px solid var(--invalid-color);
-    outline-offset: 1px;
-}
-#drag-preview > canvas {
-    width: 100%;
-    height: 100%;
-}
-
-
-.gem-overlay {
-    position: absolute;
-    background-color: transparent; /* No visible bg, just an interactive area */
-    cursor: grab;
-    z-index: 5;
-    transition: outline 0.2s ease-in-out;
-    touch-action: none;
-    border-radius: 4px; /* Prepare for outline */
-}
-
-.gem-overlay.dragging {
-    visibility: hidden; /* Hide the original element during drag */
-    cursor: grabbing;
-}
-.gem-overlay.invalid-pos {
-    outline: 3px solid var(--invalid-color);
-    outline-offset: 2px;
-}
 
 /* --- End Screen --- */
 #screen-end {
-    justify-content: flex-start; /* Align content to the top */
-    overflow-y: auto; /* Allow scrolling for content */
+    justify-content: flex-start; 
+    overflow-y: auto; 
 }
 
-/* Wrapper to control content layout within the end screen */
 .end-content-container {
     display: flex;
     flex-direction: column;
@@ -319,7 +249,7 @@ html, body {
 #end-solution-canvas {
     width: 100%;
     height: calc(100% - 20px);
-    background-color: rgba(0,0,0,0.1);
+    background-color: var(--surface-color); 
 }
 
 
@@ -362,7 +292,7 @@ html, body {
     margin-bottom: 1rem;
 }
 .toolbar-gem {
-    width: 50px; /* Slightly larger for easier tapping */
+    width: 50px; 
     height: 50px;
     cursor: grab;
     transition: transform 0.2s, opacity 0.2s;
@@ -377,6 +307,9 @@ html, body {
 .toolbar-gem.placed {
     opacity: 0.4;
     cursor: not-allowed;
+}
+.toolbar-gem.dragging {
+    opacity: 0.4;
 }
 .toolbar-gem:not(.placed):hover { transform: scale(1.1); }
 .toolbar-gem-canvas {
@@ -428,7 +361,11 @@ html, body {
     -webkit-tap-highlight-color: transparent;
 }
 #log-list li:last-child { border-bottom: none; }
+#log-list li.highlight-pair {
+    background-color: var(--primary-hover);
+}
 #log-list li:hover { background-color: rgba(255,255,255,0.05); }
+
 
 .log-entry-result {
     display: flex;
@@ -443,17 +380,4 @@ html, body {
 
 .log-color-box {
     width: 20px; height: 20px; border: 1px solid var(--border-color); flex-shrink: 0;
-}
-
-/* Emitter Highlighting */
-.emitter.highlight-pair {
-    color: var(--invalid-color) !important; /* Red highlight */
-    font-weight: 900;
-    transition: none; /* Make highlight instant */
-}
-
-.emitter.highlight-pair-alt {
-    color: var(--primary-color) !important; /* Blue highlight */
-    font-weight: 900;
-    transition: none;
 }
