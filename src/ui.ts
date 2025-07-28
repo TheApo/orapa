@@ -657,13 +657,35 @@ export class UI {
         ctx.scale(dpr, dpr);
         ctx.clearRect(0, 0, rect.width, rect.height);
         
-        const cellW = (rect.width - (GRID_WIDTH - 1) * 1) / GRID_WIDTH;
-        const cellH = (rect.height - (GRID_HEIGHT - 1) * 1) / GRID_HEIGHT;
+        const gap = 1;
+        const cellW = (rect.width - (GRID_WIDTH - 1) * gap) / GRID_WIDTH;
+        const cellH = (rect.height - (GRID_HEIGHT - 1) * gap) / GRID_HEIGHT;
 
         ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--surface-color');
         ctx.fillRect(0,0, rect.width, rect.height);
-        this.drawGemSet(ctx, correctGems, { cellW, cellH, gap: 1, opacity: 1.0, highlightInvalid: false });
-        if (playerGems.length > 0) this.drawGemSet(ctx, playerGems, { cellW, cellH, gap: 1, opacity: 0.55, highlightInvalid: true });
+        
+        // Draw Grid Lines
+        ctx.save();
+        ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--border-color');
+        ctx.lineWidth = gap;
+        ctx.beginPath();
+        // Vertical lines
+        for (let i = 1; i < GRID_WIDTH; i++) {
+            const x = i * (cellW + gap) - gap / 2;
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, rect.height);
+        }
+        // Horizontal lines
+        for (let i = 1; i < GRID_HEIGHT; i++) {
+            const y = i * (cellH + gap) - gap / 2;
+            ctx.moveTo(0, y);
+            ctx.lineTo(rect.width, y);
+        }
+        ctx.stroke();
+        ctx.restore();
+
+        this.drawGemSet(ctx, correctGems, { cellW, cellH, gap: gap, opacity: 1.0, highlightInvalid: false });
+        if (playerGems.length > 0) this.drawGemSet(ctx, playerGems, { cellW, cellH, gap: gap, opacity: 0.55, highlightInvalid: true });
     }
     
     private drawGemSet(ctx: CanvasRenderingContext2D, gems: Gem[], opts: { cellW: number, cellH: number, gap: number, opacity: number, highlightInvalid?: boolean }) {
@@ -886,8 +908,14 @@ export class UI {
             const isOverCanvas = clientX >= canvasRect.left && clientX <= canvasRect.right && clientY >= canvasRect.top && clientY <= canvasRect.bottom;
             
             if (isOverCanvas) {
-                if (this.lastValidDropTarget.isValid) {
-                    const { x, y } = this.lastValidDropTarget;
+                const { x, y } = this.lastValidDropTarget;
+                const { gridPattern } = this.draggedItemInfo;
+                const pWidth = gridPattern[0].length;
+                const pHeight = gridPattern.length;
+                
+                const isWithinBounds = x >= 0 && y >= 0 && (x + pWidth) <= GRID_WIDTH && (y + pHeight) <= GRID_HEIGHT;
+        
+                if (isWithinBounds) {
                     if (this.draggedItemInfo.from === 'toolbar') {
                         this.game.addPlayerGem(this.draggedItemInfo.name, x, y);
                     } else if (this.draggedItemInfo.id) {
