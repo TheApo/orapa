@@ -673,26 +673,49 @@ export class UI {
         }
     }
     
+    private _getGemSetIdentifier(gems: Gem[]): string {
+        // Create a canonical string representation of a gem set.
+        // Sorting the resulting strings ensures that the order of gems in the array
+        // doesn't affect the final identifier.
+        return gems
+            .map(g => `${g.name},${g.x},${g.y},${g.rotation}`)
+            .sort()
+            .join(';');
+    }
+    
     showEndScreen(isWin: boolean, waveCount: number, secretGems: Gem[], playerGems: Gem[]) {
         this.endTitle.classList.remove('win', 'loss');
         this.endRetryMessage.textContent = ''; // Clear it
-
+        
+        let playerSolutionToShow: Gem[] = [];
+    
         if (isWin) {
             this.endTitle.textContent = 'Gewonnen!';
             this.endTitle.classList.add('win');
             this.endStats.textContent = `Du hast die Mine in ${waveCount} Abfragen gelöst!`;
-            this.endSolutionLabel.textContent = 'Korrekte Lösung:';
+    
+            const secretIdentifier = this._getGemSetIdentifier(secretGems);
+            const playerIdentifier = this._getGemSetIdentifier(playerGems);
+    
+            if (secretIdentifier === playerIdentifier) {
+                this.endSolutionLabel.textContent = 'Korrekte Lösung:';
+                playerSolutionToShow = []; // Only show the secret solution, as it's identical
+            } else {
+                this.endSolutionLabel.textContent = 'Alternative Lösung gefunden! Deine Lösung (transparent):';
+                playerSolutionToShow = playerGems; // Show player's solution on top
+            }
+    
         } else {
             this.endTitle.textContent = 'Verloren!';
             this.endTitle.classList.add('loss');
             this.endStats.textContent = `Du hast ${waveCount} Abfragen gebraucht.`;
             this.endRetryMessage.textContent = 'Bitte versuche es erneut.';
             this.endSolutionLabel.textContent = 'Deine Eingabe (über der korrekten Lösung):';
+            playerSolutionToShow = playerGems;
         }
-
+    
         this.showScreen('end');
         requestAnimationFrame(() => {
-            const playerSolutionToShow = isWin ? [] : playerGems;
             this.drawEndScreenSolution(this.endSolutionCtx, secretGems, playerSolutionToShow, this.emitters);
         });
     }

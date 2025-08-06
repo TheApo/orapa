@@ -121,20 +121,41 @@ export class Game {
     }
 
     checkSolution() {
+        // 1. Prepare player grid
         const playerGrid = Array.from({ length: GRID_HEIGHT }, () => Array(GRID_WIDTH).fill(CellState.EMPTY));
         const playerGemMap = new Map<string, Gem>();
         gameState.playerGems.forEach(gem => this._paintGemOnGrid(gem, playerGrid, playerGemMap));
-
-        let isCorrect = true;
-        for(let y = 0; y < GRID_HEIGHT; y++) {
-            for(let x = 0; x < GRID_WIDTH; x++) {
-                if (playerGrid[y][x] !== this.secretGrid[y][x]) {
-                    isCorrect = false;
-                    break;
-                }
-            }
-            if (!isCorrect) break;
+    
+        // 2. Get all emitter IDs
+        const allEmitterIds: string[] = [];
+        for (let i = 1; i <= GRID_WIDTH; i++) {
+            allEmitterIds.push(`T${i}`, `B${i}`);
         }
+        for (let i = 1; i <= GRID_HEIGHT; i++) {
+            allEmitterIds.push(`L${i}`, `R${i}`);
+        }
+    
+        let isCorrect = true;
+        
+        // 3. Iterate and compare results for each emitter
+        for (const emitterId of allEmitterIds) {
+            // Trace on secret grid
+            const secretResult = tracePath(this.secretGrid, this.secretGemMap, emitterId);
+            
+            // Trace on player grid
+            const playerResult = tracePath(playerGrid, playerGemMap, emitterId);
+    
+            // Compare results by sorting colors to handle order differences.
+            const secretColorsKey = [...secretResult.colors].sort().join(',');
+            const playerColorsKey = [...playerResult.colors].sort().join(',');
+    
+            if (secretResult.exitId !== playerResult.exitId || secretColorsKey !== playerColorsKey) {
+                isCorrect = false;
+                break; // One mismatch is enough to fail.
+            }
+        }
+    
+        // 4. Show the end screen with the result
         this.showEndScreen(isCorrect);
     }
 
