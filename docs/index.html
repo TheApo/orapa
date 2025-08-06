@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Orapa Mine</title>
-  <script type="module" crossorigin src="./assets/index-CpGGRkcc.js"></script>
-  <link rel="stylesheet" crossorigin href="./assets/index-BAWI8SWq.css">
+  <script type="module" crossorigin src="./assets/index-BAcN0ryb.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-CbboynHO.css">
 </head>
 <body>
     <div id="app">
@@ -37,14 +37,15 @@
             <div class="end-content-container">
                 <h2 id="end-title" class="subtitle"></h2>
                 <p id="end-stats"></p>
+                <p id="end-retry-message"></p>
                 <div id="end-solution-wrapper">
-                    <p>Korrekte Lösung:</p>
+                    <p id="end-solution-label">Korrekte Lösung:</p>
                     <canvas id="end-solution-canvas"></canvas>
                 </div>
-                <div class="menu-buttons vertical">
-                    <button id="btn-new-level">Neues Level</button>
-                    <button id="btn-menu">Menü</button>
-                </div>
+            </div>
+            <div class="menu-buttons">
+                <button id="btn-new-level">Neues Level</button>
+                <button id="btn-menu">Menü</button>
             </div>
         </div>
 
@@ -64,13 +65,19 @@
                 </div>
                 <div id="tab-panels">
                     <div id="actions-panel" class="tab-panel active">
-                        <div id="gem-toolbar-wrapper">
-                            <span>Verfügbare Edelsteine:</span>
-                            <div id="gem-toolbar"></div>
-                        </div>
-                        <div id="action-buttons">
-                            <button id="check-solution-btn">Lösung einreichen</button>
-                            <button id="give-up-btn">Aufgeben</button>
+                        <div class="actions-content-wrapper">
+                            <div id="gem-toolbar-wrapper">
+                                <span>Verfügbare Edelsteine:</span>
+                                <div id="gem-toolbar"></div>
+                            </div>
+                            <div class="preview-toggle-wrapper">
+                                <label for="preview-toggle">Vorschau anzeigen (F)</label>
+                                <input type="checkbox" id="preview-toggle">
+                            </div>
+                            <div id="action-buttons">
+                                <button id="check-solution-btn">Lösung einreichen</button>
+                                <button id="give-up-btn">Aufgeben</button>
+                            </div>
                         </div>
                     </div>
                     <div id="log-panel" class="tab-panel">

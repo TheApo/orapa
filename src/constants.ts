@@ -22,7 +22,7 @@ export const COLORS = {
     ORANGE: '#e67e22', // gelb+rot
     ZITRONE: '#ffff8d', // weiss+gelb -> Hellgelb
     HELLLILA: '#ba68c8', // rot+blau+weiss
-    SCHWARZ_GEM: '#2c3a47', // Gem color
+    SCHWARZ_GEM: '#1d1d1d', // Gem color - made darker
     SCHWARZ_MIX: '#34495e', // rot+blau+gelb
     HELLGRUEN: '#81c784', // weiss+gelb+blau
     HELLORANGE: '#ffb74d', // weiss+gelb+rot

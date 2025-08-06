@@ -1,3 +1,4 @@
+
 import { Game } from './game';
 import { GEMS, GEM_SETS, COLORS, COLOR_MIXING, DIFFICULTIES, COLOR_NAMES } from './constants';
 import { gameState, Gem, LogEntry, GameStatus } from './state';
@@ -42,21 +43,22 @@ export class UI {
     rulesTabBtn!: HTMLButtonElement;
     checkSolutionBtn!: HTMLButtonElement;
     giveUpBtn!: HTMLButtonElement;
+    previewToggle!: HTMLInputElement;
     rulesPanel!: HTMLElement;
     
     // End Screen Elements
     endTitle!: HTMLElement;
     endStats!: HTMLElement;
+    endRetryMessage!: HTMLElement;
     endSolutionCanvas!: HTMLCanvasElement;
     endSolutionCtx!: CanvasRenderingContext2D;
+    endSolutionLabel!: HTMLElement;
     btnNewLevel!: HTMLButtonElement;
     btnMenu!: HTMLButtonElement;
     
     // Canvas interaction state
     private emitters: EmitterButton[] = [];
     private focusedEmitterId: string | null = null;
-    private selectedWaveId: string | null = null;
-    private selectionContextEmitterId: string | null = null;
     
     // Drag & Drop State
     private dragStartInfo: { item: DragInfo, startX: number, startY: number } | null = null;
@@ -107,11 +109,14 @@ export class UI {
         this.rulesPanel = document.getElementById('rules-panel') as HTMLElement;
         this.checkSolutionBtn = document.getElementById('check-solution-btn') as HTMLButtonElement;
         this.giveUpBtn = document.getElementById('give-up-btn') as HTMLButtonElement;
+        this.previewToggle = document.getElementById('preview-toggle') as HTMLInputElement;
         
         this.endTitle = document.getElementById('end-title')!;
         this.endStats = document.getElementById('end-stats')!;
+        this.endRetryMessage = document.getElementById('end-retry-message')!;
         this.endSolutionCanvas = document.getElementById('end-solution-canvas') as HTMLCanvasElement;
         this.endSolutionCtx = this.endSolutionCanvas.getContext('2d')!;
+        this.endSolutionLabel = document.getElementById('end-solution-label')!;
         this.btnNewLevel = document.getElementById('btn-new-level') as HTMLButtonElement;
         this.btnMenu = document.getElementById('btn-menu') as HTMLButtonElement;
     }
@@ -130,6 +135,7 @@ export class UI {
         
         this.checkSolutionBtn.addEventListener('click', () => this.game.checkSolution());
         this.giveUpBtn.addEventListener('click', () => this.game.giveUp());
+        this.previewToggle.addEventListener('change', () => this.game.togglePlayerPathPreview());
 
         // Keyboard navigation and actions
         this.gemCanvas.addEventListener('keydown', (e) => this.handleCanvasKeyDown(e));
@@ -144,6 +150,7 @@ export class UI {
             }
             if (gameState.status === GameStatus.PLAYING) {
                 if (e.key === 'd') this.game.toggleDebugMode();
+                if (e.key === 'f') this.game.togglePlayerPathPreview();
             }
         });
         
@@ -167,19 +174,16 @@ export class UI {
     }
 
     private handleGlobalClick(e: MouseEvent) {
-        if (!this.selectedWaveId) return;
+        if (!gameState.selectedLogEntryWaveId) return;
     
         const target = e.target as HTMLElement;
     
         // If the click is on an element that manages its own selection, do nothing.
         // Let the specific handlers for the canvas and log list do their work.
-        const isInteractive = target.closest('#gem-canvas') || target.closest('#log-list li');
+        const isInteractive = target.closest('#gem-canvas') || target.closest('#log-list li') || target.closest('.preview-toggle-wrapper');
     
         if (!isInteractive) {
-            this.selectedWaveId = null;
-            this.selectionContextEmitterId = null;
-            this.redrawAll();
-            this.updateLogHighlight();
+            this.game.setSelectedWave(null, null);
         }
     }
     
@@ -189,10 +193,10 @@ export class UI {
         this._createEmitterObjects();
         this.updateToolbar();
         this.logList.innerHTML = '';
-        this.selectedWaveId = null;
-        this.selectionContextEmitterId = null;
+        this.updateLogTabCounter(); // Reset log counter text
         this.clearPath();
         this.game.updateSolutionButtonState();
+        this.updatePreviewToggleState(gameState.showPlayerPathPreview);
         
         const ro = new ResizeObserver(() => this.onBoardResize());
         ro.observe(this.boardWrapper);
@@ -345,6 +349,11 @@ export class UI {
         }
     }
     
+    public handleSelectionChange() {
+        this.redrawAll();
+        this.updateLogHighlight();
+    }
+    
     redrawAll() {
         if (this.gemCanvas.width === 0) return; 
         const ctx = this.gemCtx;
@@ -352,7 +361,7 @@ export class UI {
         
         this._drawBoardBackgroundAndGrid(ctx);
 
-        const selectedLog = this.selectedWaveId ? gameState.log.find(l => l.waveId === this.selectedWaveId) : null;
+        const selectedLog = gameState.selectedLogEntryWaveId ? gameState.log.find(l => l.waveId === gameState.selectedLogEntryWaveId) : null;
 
         this.emitters.forEach(e => {
             let isSelected = false;
@@ -364,12 +373,19 @@ export class UI {
 
         this.clearPath();
         
-        // Path is only visible in training mode OR when debug is active.
-        const shouldShowPath = gameState.difficulty === DIFFICULTIES.TRAINING || gameState.debugMode;
-
-        if (selectedLog && shouldShowPath) {
-            const color = this.getPathColor(selectedLog.result);
-            this.drawPath(selectedLog.path, color);
+        if (selectedLog) {
+            // Draw Solution Path (in training/debug)
+            const shouldShowSolutionPath = gameState.difficulty === DIFFICULTIES.TRAINING || gameState.debugMode;
+            if (shouldShowSolutionPath && selectedLog.path) {
+                const color = this.getPathColor(selectedLog.result);
+                this.drawPath(selectedLog.path, color, false);
+            }
+        }
+        
+        // Draw Player Path Preview (Live)
+        if (gameState.showPlayerPathPreview && gameState.activePlayerPath && gameState.activePlayerResult) {
+            const playerColor = this.getPathColor(gameState.activePlayerResult);
+            this.drawPath(gameState.activePlayerPath, playerColor, true);
         }
 
         if(gameState.status === GameStatus.PLAYING) {
@@ -482,16 +498,19 @@ export class UI {
     private drawDebugSolution(ctx: CanvasRenderingContext2D) {
         if (!this.game.secretGrid || gameState.secretGems.length === 0) return;
         ctx.save();
-        ctx.globalAlpha = 0.2;
+    
         for (const gem of gameState.secretGems) {
-             const { gridPattern, x, y, name } = gem;
-             const color = GEMS[name].color;
-             for (let r = 0; r < gridPattern.length; r++) {
+            const { gridPattern, x, y, name } = gem;
+            const color = GEMS[name].color;
+    
+            ctx.globalAlpha = 0.2; // All solution gems are transparent in debug mode
+    
+            for (let r = 0; r < gridPattern.length; r++) {
                 for (let c = 0; c < gridPattern[r].length; c++) {
                     const state = gridPattern[r][c];
                     if (state !== CellState.EMPTY) {
-                        const canvasCoords = this._gridToCanvasCoords(x, y);
-                        this.drawCellShape(ctx, canvasCoords.x + c * (this.cellWidth), canvasCoords.y + r * (this.cellHeight), this.cellWidth, this.cellHeight, state, color);
+                        const canvasCoords = this._gridToCanvasCoords(x + c, y + r);
+                        this.drawCellShape(ctx, canvasCoords.x, canvasCoords.y, this.cellWidth, this.cellHeight, state, color);
                     }
                 }
             }
@@ -501,16 +520,23 @@ export class UI {
     
     private drawCellShape(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, state: CellState, color: string, isInvalid = false, isHovered = false) {
         ctx.save();
+        
+        // Default styles
         if (color === COLORS.TRANSPARENT) {
             ctx.fillStyle = 'rgba(164, 212, 228, 0.3)';
             ctx.strokeStyle = '#a4d4e4';
             ctx.lineWidth = 2;
+        } else if (color === COLORS.SCHWARZ_GEM) {
+            ctx.fillStyle = color;
+            ctx.strokeStyle = '#555'; // Lighter border for contrast
+            ctx.lineWidth = 1;
         } else {
             ctx.fillStyle = color;
             ctx.strokeStyle = 'rgba(0,0,0,0.4)';
             ctx.lineWidth = 1;
         }
     
+        // Overrides
         if (isInvalid) {
             ctx.fillStyle = 'rgba(231, 76, 60, 0.5)';
             ctx.strokeStyle = COLORS.INVALID_GEM;
@@ -562,17 +588,24 @@ export class UI {
         return COLOR_MIXING[key] || '#ccc';
     }
 
-    private drawPath(path: {x:number, y:number}[], color: string) {
+    private drawPath(path: {x:number, y:number}[], color: string, isPreview: boolean = false) {
         if (path.length < 2) return;
     
         const ctx = this.pathCtx;
-        this.clearPath();
+        ctx.save();
+        
         ctx.strokeStyle = color;
         ctx.lineWidth = 3;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
         ctx.shadowColor = 'rgba(0,0,0,0.5)';
         ctx.shadowBlur = 5;
+
+        if (isPreview) {
+            ctx.globalAlpha = 0.6;
+            ctx.setLineDash([8, 6]);
+        }
+    
         ctx.beginPath();
     
         const gridStartX = this.cellWidth + this.gap;
@@ -592,6 +625,7 @@ export class UI {
             ctx.lineTo(p2c(path[i]).x, p2c(path[i]).y);
         }
         ctx.stroke();
+        ctx.restore();
     }
 
     private clearPath() {
@@ -614,13 +648,7 @@ export class UI {
         li.innerHTML = `<span>${resultText}</span><div class="log-entry-result"><span class="log-color-name">${colorName}</span><div class="log-color-box" style="background-color: ${resultColor};"></div></div>`;
         
         this.logList.prepend(li);
-        this.switchTab('log');
-
-        // Immediately select the new wave to show tooltip
-        this.selectedWaveId = waveId;
-        this.selectionContextEmitterId = waveId;
-
-        this.updateLogHighlight();
+        this.updateLogTabCounter();
 
         const startEmitter = this.emitters.find(e => e.id === waveId);
         if (startEmitter) {
@@ -634,94 +662,158 @@ export class UI {
                 endEmitter.usedColor = resultColor;
              }
         }
-        this.redrawAll();
+    }
+
+    private updateLogTabCounter() {
+        const count = gameState.log.length;
+        if (count > 0) {
+            this.logTabBtn.textContent = `Logbuch (${count})`;
+        } else {
+            this.logTabBtn.textContent = 'Logbuch';
+        }
     }
     
     showEndScreen(isWin: boolean, waveCount: number, secretGems: Gem[], playerGems: Gem[]) {
-        this.endTitle.textContent = isWin ? 'Gewonnen!' : 'Verloren!';
-        this.endStats.textContent = isWin ? `Du hast die Mine in ${waveCount} Abfragen gelöst!` : `Du hast ${waveCount} Abfragen gebraucht.`;
+        this.endTitle.classList.remove('win', 'loss');
+        this.endRetryMessage.textContent = ''; // Clear it
+
+        if (isWin) {
+            this.endTitle.textContent = 'Gewonnen!';
+            this.endTitle.classList.add('win');
+            this.endStats.textContent = `Du hast die Mine in ${waveCount} Abfragen gelöst!`;
+            this.endSolutionLabel.textContent = 'Korrekte Lösung:';
+        } else {
+            this.endTitle.textContent = 'Verloren!';
+            this.endTitle.classList.add('loss');
+            this.endStats.textContent = `Du hast ${waveCount} Abfragen gebraucht.`;
+            this.endRetryMessage.textContent = 'Bitte versuche es erneut.';
+            this.endSolutionLabel.textContent = 'Deine Eingabe (über der korrekten Lösung):';
+        }
+
         this.showScreen('end');
         requestAnimationFrame(() => {
             const playerSolutionToShow = isWin ? [] : playerGems;
-            this.drawEndScreenSolution(this.endSolutionCtx, secretGems, playerSolutionToShow);
+            this.drawEndScreenSolution(this.endSolutionCtx, secretGems, playerSolutionToShow, this.emitters);
         });
     }
 
-    private drawEndScreenSolution(ctx: CanvasRenderingContext2D, correctGems: Gem[], playerGems: Gem[]) {
+    private drawEndScreenSolution(ctx: CanvasRenderingContext2D, correctGems: Gem[], playerGems: Gem[], emitters: EmitterButton[]) {
+        // 1. Setup canvas and dimensions
         const canvas = ctx.canvas;
         const dpr = window.devicePixelRatio || 1;
         const rect = canvas.getBoundingClientRect();
-        if (rect.width === 0) return;
+        if (rect.width === 0 || rect.height === 0) return;
+    
         canvas.width = rect.width * dpr;
         canvas.height = rect.height * dpr;
         ctx.scale(dpr, dpr);
         ctx.clearRect(0, 0, rect.width, rect.height);
         
+        // 2. Calculate cell dimensions based on full board (with emitters)
         const gap = 1;
-        const cellW = (rect.width - (GRID_WIDTH - 1) * gap) / GRID_WIDTH;
-        const cellH = (rect.height - (GRID_HEIGHT - 1) * gap) / GRID_HEIGHT;
-
-        ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--surface-color');
-        ctx.fillRect(0,0, rect.width, rect.height);
-        
-        // Draw Grid Lines
-        ctx.save();
-        ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--border-color');
-        ctx.lineWidth = gap;
-        ctx.beginPath();
-        // Vertical lines
-        for (let i = 1; i < GRID_WIDTH; i++) {
-            const x = i * (cellW + gap) - gap / 2;
-            ctx.moveTo(x, 0);
-            ctx.lineTo(x, rect.height);
-        }
-        // Horizontal lines
-        for (let i = 1; i < GRID_HEIGHT; i++) {
-            const y = i * (cellH + gap) - gap / 2;
-            ctx.moveTo(0, y);
-            ctx.lineTo(rect.width, y);
-        }
-        ctx.stroke();
-        ctx.restore();
-
-        this.drawGemSet(ctx, correctGems, { cellW, cellH, gap: gap, opacity: 1.0, highlightInvalid: false });
-        if (playerGems.length > 0) this.drawGemSet(ctx, playerGems, { cellW, cellH, gap: gap, opacity: 0.55, highlightInvalid: true });
-    }
+        const totalGridCols = GRID_WIDTH + 2;
+        const totalGridRows = GRID_HEIGHT + 2;
+        const cellWidth = (rect.width - (totalGridCols - 1) * gap) / totalGridCols;
+        const cellHeight = (rect.height - (totalGridRows - 1) * gap) / totalGridRows;
     
-    private drawGemSet(ctx: CanvasRenderingContext2D, gems: Gem[], opts: { cellW: number, cellH: number, gap: number, opacity: number, highlightInvalid?: boolean }) {
-        ctx.save();
-        ctx.globalAlpha = opts.opacity;
-        for (const gem of gems) {
-            const color = GEMS[gem.name].color;
-            const shouldHighlight = !!opts.highlightInvalid && !gem.isValid;
-            for (let r = 0; r < gem.gridPattern.length; r++) {
-                for (let c = 0; c < gem.gridPattern[r].length; c++) {
-                    const state = gem.gridPattern[r][c];
-                    if (state !== CellState.EMPTY) {
-                        const canvasX = gem.x * (opts.cellW + opts.gap) + c * opts.cellW;
-                        const canvasY = gem.y * (opts.cellH + opts.gap) + r * opts.cellH;
-                        this.drawCellShape(ctx, canvasX, canvasY, opts.cellW, opts.cellH, state, color, shouldHighlight);
+        // Helper to draw a set of gems
+        const drawGems = (gems: Gem[], opacity: number, highlightInvalid: boolean) => {
+            ctx.save();
+            ctx.globalAlpha = opacity;
+            for (const gem of gems) {
+                const color = GEMS[gem.name].color;
+                const isInvalid = highlightInvalid ? !gem.isValid : false;
+    
+                for (let r = 0; r < gem.gridPattern.length; r++) {
+                    for (let c = 0; c < gem.gridPattern[r].length; c++) {
+                        const state = gem.gridPattern[r][c];
+                        if (state !== CellState.EMPTY) {
+                            const gridX = gem.x + c;
+                            const gridY = gem.y + r;
+                            const cellCanvasX = (gridX + 1) * (cellWidth + gap);
+                            const cellCanvasY = (gridY + 1) * (cellHeight + gap);
+                            this.drawCellShape(ctx, cellCanvasX, cellCanvasY, cellWidth, cellHeight, state, color, isInvalid);
+                        }
                     }
                 }
             }
+            ctx.restore();
+        };
+    
+        // 3. Draw board background and grid lines
+        ctx.save();
+        const surfaceColor = getComputedStyle(document.documentElement).getPropertyValue('--surface-color');
+        const borderColor = getComputedStyle(document.documentElement).getPropertyValue('--border-color');
+        
+        ctx.fillStyle = surfaceColor;
+        ctx.fillRect(0, 0, rect.width, rect.height);
+        
+        ctx.fillStyle = borderColor;
+        ctx.fillRect(cellWidth + gap / 2, cellHeight + gap / 2, 
+                     (GRID_WIDTH) * cellWidth + (GRID_WIDTH + 1) * gap, 
+                     (GRID_HEIGHT) * cellHeight + (GRID_HEIGHT + 1) * gap);
+    
+        ctx.fillStyle = surfaceColor;
+        ctx.fillRect(cellWidth + gap, cellHeight + gap, 
+                     GRID_WIDTH * (cellWidth + gap) - gap, 
+                     GRID_HEIGHT * (cellHeight + gap) - gap);
+    
+        ctx.strokeStyle = borderColor;
+        ctx.lineWidth = gap;
+        ctx.beginPath();
+        for (let i = 1; i < GRID_WIDTH; i++) {
+            const x = (i + 1) * (cellWidth + gap) - gap / 2;
+            ctx.moveTo(x, cellHeight + gap);
+            ctx.lineTo(x, (GRID_HEIGHT + 1) * (cellHeight + gap));
         }
+        for (let i = 1; i < GRID_HEIGHT; i++) {
+            const y = (i + 1) * (cellHeight + gap) - gap / 2;
+            ctx.moveTo(cellWidth + gap, y);
+            ctx.lineTo((GRID_WIDTH + 1) * (cellWidth + gap), y);
+        }
+        ctx.stroke();
         ctx.restore();
+    
+        // 4. Draw Emitters
+        emitters.forEach(emitter => {
+            const id = emitter.id;
+            const num = parseInt(id.substring(1)) - 1;
+            let col = 0, row = 0;
+            switch (id[0]) {
+                case 'T': col = num + 1; row = 0; break;
+                case 'B': col = num + 1; row = totalGridRows - 1; break;
+                case 'L': col = 0; row = num + 1; break;
+                case 'R': col = totalGridCols - 1; row = num + 1; break;
+            }
+            
+            const tempEmitter = Object.assign(new EmitterButton(emitter.id, emitter.label), emitter);
+            tempEmitter.rect = {
+                x: col * (cellWidth + gap),
+                y: row * (cellHeight + gap),
+                width: cellWidth,
+                height: cellHeight
+            };
+            tempEmitter.state = 'normal';
+            tempEmitter.draw(ctx, false);
+        });
+    
+        // 5. Draw the gems
+        drawGems(correctGems, 1.0, false);
+        if (playerGems.length > 0) {
+            drawGems(playerGems, 0.55, true);
+        }
     }
 
     private handleLogClick(e: MouseEvent) {
         const li = (e.target as HTMLElement).closest('li');
         if (li && li.dataset.waveId) {
             const waveId = li.dataset.waveId;
-            if (this.selectedWaveId === waveId) {
-                this.selectedWaveId = null;
-                this.selectionContextEmitterId = null;
+            if (gameState.selectedLogEntryWaveId === waveId) {
+                this.game.setSelectedWave(null, null);
             } else {
-                this.selectedWaveId = waveId;
-                // When clicking the log, the context is always the start emitter
-                this.selectionContextEmitterId = waveId;
+                // When clicking the log, the context is the start emitter
+                this.game.setSelectedWave(waveId, waveId);
             }
-            this.redrawAll();
-            this.updateLogHighlight();
         }
     }
     
@@ -741,10 +833,14 @@ export class UI {
         this.redrawAll();
     }
 
+    public updatePreviewToggleState(isChecked: boolean) {
+        this.previewToggle.checked = isChecked;
+    }
+
     private updateLogHighlight() {
         this.logList.querySelectorAll('li').forEach(li => {
             const htmlLi = li as HTMLLIElement;
-            if (htmlLi.dataset.waveId === this.selectedWaveId) {
+            if (htmlLi.dataset.waveId === gameState.selectedLogEntryWaveId) {
                 htmlLi.classList.add('selected');
                 htmlLi.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             } else {
@@ -768,12 +864,10 @@ export class UI {
                 } else if (focusedEmitter?.isUsed) {
                     const logEntry = gameState.log.find(l => l.waveId === focusedEmitter.id || l.result.exitId === focusedEmitter.id);
                     if (logEntry) {
-                        if (this.selectedWaveId === logEntry.waveId && this.selectionContextEmitterId === focusedEmitter.id) {
-                            this.selectedWaveId = null;
-                            this.selectionContextEmitterId = null;
+                        if (gameState.selectedLogEntryWaveId === logEntry.waveId && gameState.previewSourceEmitterId === focusedEmitter.id) {
+                            this.game.setSelectedWave(null, null);
                         } else {
-                             this.selectedWaveId = logEntry.waveId;
-                             this.selectionContextEmitterId = focusedEmitter.id;
+                             this.game.setSelectedWave(logEntry.waveId, focusedEmitter.id);
                         }
                     }
                 }
@@ -944,31 +1038,23 @@ export class UI {
                     } else {
                         const logEntry = gameState.log.find(l => l.waveId === clickedEmitter.id || l.result.exitId === clickedEmitter.id);
                         if (logEntry) {
-                            if (this.selectedWaveId === logEntry.waveId && this.selectionContextEmitterId === clickedEmitter.id) {
-                                this.selectedWaveId = null;
-                                this.selectionContextEmitterId = null;
+                            if (gameState.selectedLogEntryWaveId === logEntry.waveId && gameState.previewSourceEmitterId === clickedEmitter.id) {
+                                this.game.setSelectedWave(null, null);
                             } else {
-                                this.selectedWaveId = logEntry.waveId;
-                                this.selectionContextEmitterId = clickedEmitter.id;
+                                this.game.setSelectedWave(logEntry.waveId, clickedEmitter.id);
                             }
-                        } else { // Should not happen for a used emitter, but good to have
-                            this.selectedWaveId = null;
-                            this.selectionContextEmitterId = null;
+                        } else {
+                            this.game.setSelectedWave(null, null);
                         }
                     }
-                    this.updateLogHighlight();
                 } else {
                     const clickedGem = this.getGemAtCanvasPos(x, y);
                     if (clickedGem) {
-                        this.selectedWaveId = null;
-                        this.selectionContextEmitterId = null;
+                        this.game.setSelectedWave(null, null);
                         this.game.rotatePlayerGem(clickedGem.id);
-                        this.updateLogHighlight();
                     } else {
                         // Clicked on empty space on canvas, deselect
-                        this.selectedWaveId = null;
-                        this.selectionContextEmitterId = null;
-                        this.updateLogHighlight();
+                        this.game.setSelectedWave(null, null);
                     }
                 }
             }
@@ -1089,12 +1175,12 @@ export class UI {
     }
 
     private _drawSelectedWaveTooltip(ctx: CanvasRenderingContext2D) {
-        if (!this.selectedWaveId) return;
+        if (!gameState.selectedLogEntryWaveId) return;
     
-        const selectedLog = gameState.log.find(l => l.waveId === this.selectedWaveId);
+        const selectedLog = gameState.log.find(l => l.waveId === gameState.selectedLogEntryWaveId);
         if (!selectedLog) return;
     
-        const contextEmitterId = this.selectionContextEmitterId || selectedLog.waveId;
+        const contextEmitterId = gameState.previewSourceEmitterId || selectedLog.waveId;
         const contextEmitter = this.emitters.find(e => e.id === contextEmitterId);
         if (!contextEmitter) return;
     

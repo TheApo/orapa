@@ -66,6 +66,11 @@ export class Game {
         gameState.log = [];
         gameState.waveCount = 0;
         gameState.debugMode = false;
+        gameState.showPlayerPathPreview = false;
+        gameState.selectedLogEntryWaveId = null;
+        gameState.previewSourceEmitterId = null;
+        gameState.activePlayerPath = null;
+        gameState.activePlayerResult = null;
         
         this.ui.setupGameUI();
         this.ui.showScreen('game');
@@ -81,15 +86,38 @@ export class Game {
         this.ui.redrawAll();
     }
 
+    togglePlayerPathPreview() {
+        gameState.showPlayerPathPreview = !gameState.showPlayerPathPreview;
+        this.ui.updatePreviewToggleState(gameState.showPlayerPathPreview);
+        this.ui.redrawAll();
+    }
+
     sendWave(emitterId: string) {
         if (gameState.status !== GameStatus.PLAYING) return;
         
         gameState.waveCount++;
+
+        // 1. Trace solution path
         const result = tracePath(this.secretGrid, this.secretGemMap, emitterId);
-        const logEntry = { waveId: emitterId, result, path: result.path };
+        
+        // 2. Trace player path
+        const playerGrid = Array.from({ length: GRID_HEIGHT }, () => Array(GRID_WIDTH).fill(CellState.EMPTY));
+        const playerGemMap = new Map<string, Gem>();
+        gameState.playerGems.forEach(gem => this._paintGemOnGrid(gem, playerGrid, playerGemMap));
+        const playerResult = tracePath(playerGrid, playerGemMap, emitterId);
+
+        // 3. Create log entry
+        const logEntry = {
+            waveId: emitterId,
+            result,
+            path: result.path,
+            playerPath: playerResult.path,
+            playerResult: playerResult
+        };
         gameState.log.push(logEntry);
         
         this.ui.addLogEntry(logEntry, emitterId);
+        this.setSelectedWave(emitterId, emitterId);
     }
 
     checkSolution() {
@@ -133,6 +161,7 @@ export class Game {
         
         gameState.playerGems.push(newGem);
         this._revalidateAllPlayerGems();
+        this._updateActivePlayerPathPreview();
 
         this.updateSolutionButtonState();
         this.ui.updateToolbar();
@@ -148,6 +177,7 @@ export class Game {
             gem.y = Math.max(0, Math.min(newY, GRID_HEIGHT - height));
             
             this._revalidateAllPlayerGems();
+            this._updateActivePlayerPathPreview();
             this.updateSolutionButtonState();
             this.ui.redrawAll();
         }
@@ -159,6 +189,7 @@ export class Game {
             gameState.playerGems.splice(gemIndex, 1);
             
             this._revalidateAllPlayerGems();
+            this._updateActivePlayerPathPreview();
             this.updateSolutionButtonState();
             this.ui.updateToolbar();
             this.ui.redrawAll();
@@ -191,6 +222,7 @@ export class Game {
 
             // 5. Revalidate and redraw
             this._revalidateAllPlayerGems();
+            this._updateActivePlayerPathPreview();
             this.updateSolutionButtonState();
             this.ui.redrawAll();
         }
@@ -201,6 +233,29 @@ export class Game {
         return this._isPlacementValid(gemToTest, gameState.playerGems);
     }
     
+    public setSelectedWave(logEntryWaveId: string | null, sourceEmitterId: string | null) {
+        gameState.selectedLogEntryWaveId = logEntryWaveId;
+        gameState.previewSourceEmitterId = sourceEmitterId;
+        this._updateActivePlayerPathPreview();
+        this.ui.handleSelectionChange();
+    }
+
+    private _updateActivePlayerPathPreview() {
+        if (!gameState.previewSourceEmitterId) {
+            gameState.activePlayerPath = null;
+            gameState.activePlayerResult = null;
+            return;
+        }
+    
+        const playerGrid = Array.from({ length: GRID_HEIGHT }, () => Array(GRID_WIDTH).fill(CellState.EMPTY));
+        const playerGemMap = new Map<string, Gem>();
+        gameState.playerGems.forEach(gem => this._paintGemOnGrid(gem, playerGrid, playerGemMap));
+        const playerResult = tracePath(playerGrid, playerGemMap, gameState.previewSourceEmitterId);
+        
+        gameState.activePlayerPath = playerResult.path;
+        gameState.activePlayerResult = playerResult;
+    }
+
     private _revalidateAllPlayerGems() {
         gameState.playerGems.forEach(gem => {
             gem.isValid = this._isPlacementValid(gem, gameState.playerGems);

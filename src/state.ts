@@ -1,4 +1,5 @@
 
+
 import { CellState } from "./grid";
 
 export enum GameStatus {
@@ -23,6 +24,8 @@ export interface LogEntry {
     waveId: string;
     result: any;
     path: {x: number, y: number}[];
+    playerPath?: {x: number, y: number}[];
+    playerResult?: any;
 }
 
 export interface GameState {
@@ -33,6 +36,11 @@ export interface GameState {
     log: LogEntry[];
     waveCount: number;
     debugMode: boolean;
+    showPlayerPathPreview: boolean;
+    selectedLogEntryWaveId: string | null; // ID of the wave in the log entry being inspected
+    previewSourceEmitterId: string | null; // ID of the emitter to use as the live preview source
+    activePlayerPath: {x: number, y: number}[] | null; // Live calculated path for the player
+    activePlayerResult: any | null; // Live calculated result for the player
 }
 
 export const gameState: GameState = {
@@ -43,4 +51,9 @@ export const gameState: GameState = {
     log: [],
     waveCount: 0,
     debugMode: false,
+    showPlayerPathPreview: false,
+    selectedLogEntryWaveId: null,
+    previewSourceEmitterId: null,
+    activePlayerPath: null,
+    activePlayerResult: null,
 };
