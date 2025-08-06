@@ -64,6 +64,9 @@ html, body {
     transform: scale(1);
     transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
 }
+#screen-main {
+    overflow-y: auto;
+}
 .screen.hidden {
     visibility: hidden;
     opacity: 0;
@@ -504,6 +507,7 @@ html, body {
     gap: 1.5rem; /* Space between columns */
     margin-top: 0.5rem;
     align-items: flex-start; /* Align items at the top of each column */
+    overflow-x: auto;
 }
 
 .color-mix-column {
@@ -554,8 +558,7 @@ html, body {
     }
 
     .color-mix-container {
-        flex-direction: column; /* Stack columns */
-        gap: 0.5rem; /* Reduce gap between stacked columns */
+        gap: 0.5rem; /* Reduce gap between columns */
     }
 
     .color-mix-column {
