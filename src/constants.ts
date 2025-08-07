@@ -132,15 +132,17 @@ export const CUSTOM_SHAPES: { [key: string]: { name: string, gridPattern: CellSt
     SHAPE_DIAMOND: { name: 'Raute', gridPattern: GEMS.WEISS_RAUTE.gridPattern },
     SHAPE_SMALL_TRIANGLE: { name: 'Kleines Dreieck', gridPattern: GEMS.TRANSPARENT.gridPattern },
     SHAPE_ABSORBER: { name: 'Absorber', gridPattern: GEMS.SCHWARZ.gridPattern },
-    SHAPE_L: { name: 'L-Form', gridPattern: [[CellState.BLOCK, CellState.TRIANGLE_BL], [CellState.BLOCK, CellState.BLOCK]] },
-    SHAPE_T: { name: 'T-Form', gridPattern: [[CellState.BLOCK, CellState.BLOCK, CellState.BLOCK], [CellState.TRIANGLE_TR, CellState.BLOCK, CellState.TRIANGLE_TL]] },
+    SHAPE_L: { name: 'L-Form', gridPattern: [[CellState.TRIANGLE_BR, CellState.TRIANGLE_BL], [CellState.BLOCK, CellState.TRIANGLE_TL]] },
+    SHAPE_T: { name: 'T-Form', gridPattern: [[CellState.TRIANGLE_BR, CellState.BLOCK, CellState.TRIANGLE_BL], [CellState.TRIANGLE_TR, CellState.BLOCK, CellState.TRIANGLE_TL]] },
     SHAPE_SQUARE: { name: 'Quadrat', gridPattern: [[CellState.TRIANGLE_BR, CellState.BLOCK], [CellState.BLOCK, CellState.TRIANGLE_TL]] },
     SHAPE_BAR: { name: 'Stab', gridPattern: [[CellState.TRIANGLE_BL], [CellState.BLOCK], [CellState.TRIANGLE_TL]] },
+    SHAPE_SMALL: { name: 'Small', gridPattern: [[CellState.TRIANGLE_TR, CellState.TRIANGLE_BL]] },
+    SHAPE_STRANGE: { name: 'Strange', gridPattern: [[CellState.TRIANGLE_BL, CellState.TRIANGLE_BR], [CellState.TRIANGLE_TL, CellState.TRIANGLE_TR]] },
 };
 
 
 export const GEM_SETS: { [key: string]: string[] } = {
-    [DIFFICULTIES.TRAINING]: ['GELB', 'ROT', 'BLAU', 'WEISS_RAUTE'],
+    [DIFFICULTIES.TRAINING]: ['GELB', 'ROT', 'BLAU', 'WEISS_RAUTE', 'WEISS_DREIECK'],
     [DIFFICULTIES.NORMAL]: ['GELB', 'ROT', 'BLAU', 'WEISS_RAUTE', 'WEISS_DREIECK'],
     [DIFFICULTIES.MITTEL]: ['GELB', 'ROT', 'BLAU', 'WEISS_RAUTE', 'WEISS_DREIECK', 'TRANSPARENT'],
     [DIFFICULTIES.SCHWER]: ['GELB', 'ROT', 'BLAU', 'WEISS_RAUTE', 'WEISS_DREIECK', 'TRANSPARENT', 'SCHWARZ'],

@@ -389,29 +389,32 @@ export class UI {
                 counts[g.originalColorKey as keyof typeof counts]++;
             }
         });
-
-        let isValid = true;
-        let feedbackHtml = '';
-
-        const checkRule = (label: string, condition: boolean, errorMsg: string) => {
-            if (condition) {
-                feedbackHtml += `<div class="valid">✅ ${label}</div>`;
-            } else {
-                feedbackHtml += `<div class="invalid">❌ ${errorMsg}</div>`;
-                isValid = false;
+    
+        const validationRules = [
+            { condition: counts.ROT === 1, error: "Benötigt: <strong>genau 1 roten</strong> Stein" },
+            { condition: counts.GELB === 1, error: "Benötigt: <strong>genau 1 gelben</strong> Stein" },
+            { condition: counts.BLAU === 1, error: "Benötigt: <strong>genau 1 blauen</strong> Stein" },
+            { condition: counts.WEISS >= 1, error: "Benötigt: <strong>mindestens 1 weissen</strong> Stein" },
+            { condition: counts.WEISS <= 2, error: "Erlaubt: <strong>maximal 2 weisse</strong> Steine" },
+            { condition: counts.TRANSPARENT <= 2, error: "Erlaubt: <strong>maximal 2 transparente</strong> Steine" },
+            { condition: counts.SCHWARZ <= 1, error: "Erlaubt: <strong>maximal 1 schwarzen</strong> Stein" },
+        ];
+    
+        let firstError = null;
+        for (const rule of validationRules) {
+            if (!rule.condition) {
+                firstError = rule.error;
+                break; // Stop at the first error
             }
-        };
-        
-        checkRule("1x Rot", counts.ROT === 1, "Benötigt: <strong>genau 1 roten</strong> Stein");
-        checkRule("1x Gelb", counts.GELB === 1, "Benötigt: <strong>genau 1 gelben</strong> Stein");
-        checkRule("1x Blau", counts.BLAU === 1, "Benötigt: <strong>genau 1 blauen</strong> Stein");
-        checkRule("Mind. 1x Weiss", counts.WEISS >= 1, "Benötigt: <strong>mindestens 1 weissen</strong> Stein");
-        checkRule("Max. 2x Weiss", counts.WEISS <= 2, "Erlaubt: <strong>maximal 2 weisse</strong> Steine");
-        checkRule("Max. 2x Transparent", counts.TRANSPARENT <= 2, "Erlaubt: <strong>maximal 2 transparente</strong> Steine");
-        checkRule("Max. 1x Schwarz", counts.SCHWARZ <= 1, "Erlaubt: <strong>maximal 1 schwarzen</strong> Stein");
-        
-        this.customValidationFeedback.innerHTML = feedbackHtml;
-        this.btnStartCustomLevel.disabled = !isValid;
+        }
+    
+        if (firstError) {
+            this.customValidationFeedback.innerHTML = `<div class="invalid">❌ ${firstError}</div>`;
+            this.btnStartCustomLevel.disabled = true;
+        } else {
+            this.customValidationFeedback.innerHTML = `<div class="valid">✅ Level ist valide</div>`;
+            this.btnStartCustomLevel.disabled = false;
+        }
     }
     
     private _handleStartCustomLevel() {
@@ -570,7 +573,7 @@ export class UI {
     redrawAll() {
         if (this.gemCanvas.width === 0) return; 
         const ctx = this.gemCtx;
-        ctx.clearRect(0, 0, this.gemCanvas.width, this.gemCanvas.height);
+        this._clearCanvas(ctx);
         
         this._drawBoardBackgroundAndGrid(ctx);
 
@@ -848,8 +851,18 @@ export class UI {
         ctx.restore();
     }
 
+    private _clearCanvas(ctx: CanvasRenderingContext2D) {
+        ctx.save();
+        // Reset transform to identity to clear the canvas based on raw pixel dimensions,
+        // ignoring any scaling/translation. This is a robust way to clear the canvas
+        // and prevent artifacts from previous frames, especially on scaled contexts.
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+        ctx.restore(); // Restore the previous transform (which includes devicePixelRatio scaling)
+    }
+
     private clearPath() {
-        this.pathCtx.clearRect(0, 0, this.pathOverlay.width, this.pathOverlay.height);
+        this._clearCanvas(this.pathCtx);
     }
     
     switchTab(tabName: 'actions' | 'log' | 'rules') {

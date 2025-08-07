@@ -55,14 +55,42 @@ export class EmitterButton {
         }
 
         // 4. Determine text color
-        const getContrast = (hex: string) => {
-            if (!hex || hex.length < 7) return '#ecf0f1'; // default text color
+        const getContrast = (colorStr: string): string => {
+            if (!colorStr) return '#ecf0f1';
+
+            let r=0, g=0, b=0;
+
             try {
-                const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
-                return (r*0.299 + g*0.587 + b*0.114) > 186 ? '#2c3e50' : '#ecf0f1';
+                if (colorStr.startsWith('#')) {
+                    let hex = colorStr.substring(1);
+                    if (hex.length === 3) {
+                        hex = hex.split('').map(char => char + char).join('');
+                    }
+                    if (hex.length !== 6) return '#ecf0f1';
+                    
+                    r = parseInt(hex.substring(0, 2), 16);
+                    g = parseInt(hex.substring(2, 4), 16);
+                    b = parseInt(hex.substring(4, 6), 16);
+
+                } else if (colorStr.startsWith('rgb')) { // handles rgb and rgba
+                    const parts = colorStr.substring(colorStr.indexOf('(') + 1, colorStr.lastIndexOf(')')).split(/,\s*/);
+                    r = parseInt(parts[0]);
+                    g = parseInt(parts[1]);
+                    b = parseInt(parts[2]);
+                } else {
+                     return '#ecf0f1'; // Unsupported format
+                }
             } catch (e) {
-                return '#ecf0f1';
+                return '#ecf0f1'; // Parsing error
             }
+           
+            if (isNaN(r) || isNaN(g) || isNaN(b)) return '#ecf0f1';
+
+            // Using YIQ formula to determine luminance.
+            // See https://www.w3.org/TR/AERT/#color-contrast
+            const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
+            // A threshold of 149 provides a good balance for this app's color palette.
+            return (yiq >= 149) ? '#2c3e50' : '#ecf0f1';
         };
         
         const textColor = getContrast(bgColor);

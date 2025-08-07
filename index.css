@@ -1,3 +1,4 @@
+
 :root {
     --bg-color: #2c3e50;
     --surface-color: #34495e;
@@ -90,9 +91,37 @@ html, body {
     font-size: 3rem;
     font-weight: 300;
     letter-spacing: 2px;
-    margin-bottom: 2rem;
+    margin-bottom: 0.5rem;
     text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
 }
+
+.subtitle-group {
+    text-align: center;
+    margin-bottom: 2rem;
+    margin-top: -1rem; /* Pull up closer to title */
+}
+
+.byline, .based-on {
+    font-size: 0.9rem;
+    color: rgba(255, 255, 255, 0.7);
+    line-height: 1.4;
+    font-weight: 300;
+}
+
+.byline {
+    margin-bottom: 0.1rem;
+}
+
+.version-info {
+    position: absolute;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.4);
+    pointer-events: none;
+}
+
 .subtitle {
     font-size: 2rem;
     font-weight: 400;
@@ -330,18 +359,19 @@ html, body {
 
 #custom-validation-feedback {
     margin-top: 1rem;
-    padding: 0.75rem;
+    padding: 0.6rem;
     background-color: rgba(0,0,0,0.2);
     border: 1px solid var(--border-color);
     border-radius: 6px;
-    text-align: left;
+    text-align: center;
     font-size: 0.9rem;
-    line-height: 1.6;
+    line-height: 1.4;
+    min-height: 38px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 #custom-validation-feedback div {
-    margin-bottom: 0.25rem;
-}
-#custom-validation-feedback div:last-child {
     margin-bottom: 0;
 }
 #custom-validation-feedback .valid {
