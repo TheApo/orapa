@@ -121,3 +121,33 @@ export const GEM_SETS: { [key: string]: string[] } = {
     [DIFFICULTIES.MITTEL]: ['GELB', 'ROT', 'BLAU', 'WEISS_RAUTE', 'WEISS_DREIECK', 'TRANSPARENT'],
     [DIFFICULTIES.SCHWER]: ['GELB', 'ROT', 'BLAU', 'WEISS_RAUTE', 'WEISS_DREIECK', 'TRANSPARENT', 'SCHWARZ'],
 };
+
+export const RATINGS: { [key: string]: { limit: number; text: string }[] } = {
+    [DIFFICULTIES.TRAINING]: [
+        { limit: 8, text: 'Sehr gut' },
+        { limit: 10, text: 'Gut' },
+        { limit: 20, text: 'Normal' },
+        { limit: Infinity, text: 'Verbesserungsfähig' },
+    ],
+    [DIFFICULTIES.NORMAL]: [
+        { limit: 10, text: 'Ein wahrer Experte bei der Edelsteinsuche' },
+        { limit: 13, text: 'Ein Profi, dem kaum einer was vormacht' },
+        { limit: 18, text: 'Guter Edelsteinsucher' },
+        { limit: 23, text: 'Juhu, alle Edelsteine gefunden!' },
+        { limit: Infinity, text: 'Immerhin alle Edelsteine gefunden.' },
+    ],
+    [DIFFICULTIES.MITTEL]: [
+        { limit: 12, text: 'Meisterlich! Kaum eine Abfrage zu viel.' },
+        { limit: 15, text: 'Sehr beeindruckend! Du kennst dich aus.' },
+        { limit: 20, text: 'Starke Leistung! Du hast den Dreh raus.' },
+        { limit: 25, text: 'Gut gemacht! Alle Schätze geborgen.' },
+        { limit: Infinity, text: 'Geduld und Spucke führen zum Ziel!' },
+    ],
+    [DIFFICULTIES.SCHWER]: [
+        { limit: 15, text: 'Legendär! Eine Leistung für die Geschichtsbücher.' },
+        { limit: 18, text: 'Herausragend! Selbst Experten staunen.' },
+        { limit: 21, text: 'Experten-Niveau! Du hast es wirklich drauf.' },
+        { limit: 25, text: 'Ein hartes Stück Arbeit, aber erfolgreich!' },
+        { limit: Infinity, text: 'Puh, das war knapp, aber gewonnen!' },
+    ],
+};

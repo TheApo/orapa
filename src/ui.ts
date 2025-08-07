@@ -1,6 +1,6 @@
 
 import { Game } from './game';
-import { GEMS, GEM_SETS, COLORS, COLOR_MIXING, DIFFICULTIES, COLOR_NAMES } from './constants';
+import { GEMS, GEM_SETS, COLORS, COLOR_MIXING, DIFFICULTIES, COLOR_NAMES, RATINGS } from './constants';
 import { gameState, Gem, LogEntry, GameStatus } from './state';
 import { CellState, GRID_WIDTH, GRID_HEIGHT } from './grid';
 import { EmitterButton } from './ui-objects';
@@ -48,11 +48,13 @@ export class UI {
     
     // End Screen Elements
     endTitle!: HTMLElement;
+    endRating!: HTMLElement;
     endStats!: HTMLElement;
     endRetryMessage!: HTMLElement;
     endSolutionCanvas!: HTMLCanvasElement;
     endSolutionCtx!: CanvasRenderingContext2D;
     endSolutionLabel!: HTMLElement;
+    endRatingLegend!: HTMLElement;
     btnNewLevel!: HTMLButtonElement;
     btnMenu!: HTMLButtonElement;
     
@@ -112,11 +114,13 @@ export class UI {
         this.previewToggle = document.getElementById('preview-toggle') as HTMLInputElement;
         
         this.endTitle = document.getElementById('end-title')!;
+        this.endRating = document.getElementById('end-rating') as HTMLElement;
         this.endStats = document.getElementById('end-stats')!;
         this.endRetryMessage = document.getElementById('end-retry-message')!;
         this.endSolutionCanvas = document.getElementById('end-solution-canvas') as HTMLCanvasElement;
         this.endSolutionCtx = this.endSolutionCanvas.getContext('2d')!;
         this.endSolutionLabel = document.getElementById('end-solution-label')!;
+        this.endRatingLegend = document.getElementById('end-rating-legend') as HTMLElement;
         this.btnNewLevel = document.getElementById('btn-new-level') as HTMLButtonElement;
         this.btnMenu = document.getElementById('btn-menu') as HTMLButtonElement;
     }
@@ -696,14 +700,18 @@ export class UI {
     
     showEndScreen(isWin: boolean, waveCount: number, secretGems: Gem[], playerGems: Gem[]) {
         this.endTitle.classList.remove('win', 'loss');
-        this.endRetryMessage.textContent = ''; // Clear it
+        this.endRetryMessage.textContent = '';
+        this.endRating.textContent = '';
+        this.endRatingLegend.innerHTML = '';
+        this.endRating.style.display = 'none';
+        this.endRatingLegend.style.display = 'none';
         
         let playerSolutionToShow: Gem[] = [];
     
         if (isWin) {
             this.endTitle.textContent = 'Gewonnen!';
             this.endTitle.classList.add('win');
-            this.endStats.textContent = `Du hast die Mine in ${waveCount} Abfragen gelöst!`;
+            this.endStats.textContent = `Du hast die Mine in ${waveCount} Abfragen gelöst.`;
     
             const areSolutionsIdentical = this._areGemSetsIdentical(secretGems, playerGems);
     
@@ -713,6 +721,38 @@ export class UI {
             } else {
                 this.endSolutionLabel.textContent = 'Alternative Lösung gefunden! Deine Lösung (transparent):';
                 playerSolutionToShow = playerGems; // Show player's solution on top
+            }
+            
+            // New rating logic
+            const difficulty = gameState.difficulty;
+            if (difficulty && RATINGS[difficulty]) {
+                const ratingTiers = RATINGS[difficulty];
+                let ratingText = '';
+                for (const tier of ratingTiers) {
+                    if (waveCount <= tier.limit) {
+                        ratingText = tier.text;
+                        break;
+                    }
+                }
+    
+                if (ratingText) {
+                    this.endRating.textContent = ratingText;
+                    this.endRating.style.display = 'block';
+    
+                    // Generate and display legend
+                    this.endRatingLegend.style.display = 'block';
+                    let legendHtml = `<h5>Bewertung für ${difficulty}</h5><ul>`;
+                    let lastLimit = 0;
+                    ratingTiers.forEach(tier => {
+                        const rangeText = lastLimit === 0 ? `bis ${tier.limit} Abfragen`
+                                        : tier.limit === Infinity ? `mehr als ${lastLimit} Abfragen`
+                                        : `${lastLimit + 1} - ${tier.limit} Abfragen`;
+                        legendHtml += `<li><strong>${tier.text}:</strong> ${rangeText}</li>`;
+                        lastLimit = tier.limit;
+                    });
+                    legendHtml += '</ul>';
+                    this.endRatingLegend.innerHTML = legendHtml;
+                }
             }
     
         } else {
