@@ -1,10 +1,9 @@
-
-
 import { CellState } from "./grid";
 
 export enum GameStatus {
     MAIN_MENU,
     DIFFICULTY_SELECT,
+    CUSTOM_CREATOR,
     PLAYING,
     GAME_OVER,
 }
@@ -41,6 +40,9 @@ export interface GameState {
     previewSourceEmitterId: string | null; // ID of the emitter to use as the live preview source
     activePlayerPath: {x: number, y: number}[] | null; // Live calculated path for the player
     activePlayerResult: any | null; // Live calculated result for the player
+    // For custom levels
+    customGemSet: string[];
+    customGemDefinitions: { [key: string]: any };
 }
 
 export const gameState: GameState = {
@@ -56,4 +58,6 @@ export const gameState: GameState = {
     previewSourceEmitterId: null,
     activePlayerPath: null,
     activePlayerResult: null,
+    customGemSet: [],
+    customGemDefinitions: {},
 };

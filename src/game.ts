@@ -1,5 +1,3 @@
-
-
 import { GEMS, GEM_SETS, DIFFICULTIES } from './constants';
 import { gameState, GameStatus, Gem } from './state';
 import { UI } from './ui';
@@ -54,6 +52,11 @@ export class Game {
         this.ui.showScreen('difficulty');
     }
     
+    showCustomCreator() {
+        gameState.status = GameStatus.CUSTOM_CREATOR;
+        this.ui.showScreen('custom-creator');
+    }
+
     showEndScreen(isWin: boolean) {
         gameState.status = GameStatus.GAME_OVER;
         this.ui.showEndScreen(isWin, gameState.waveCount, gameState.secretGems, gameState.playerGems);
@@ -66,7 +69,7 @@ export class Game {
         
         gameState.secretGems = this._placeSecretGems();
         if (gameState.secretGems.length === 0) {
-            this.showDifficultySelect();
+            this.showDifficultySelect(); // Fallback if generation fails
             return;
         }
 
@@ -100,19 +103,30 @@ export class Game {
         this.ui.redrawAll();
     }
 
+    private getGemDefinition(gemName: string): any {
+        const isCustom = gameState.difficulty === DIFFICULTIES.CUSTOM;
+        const definition = isCustom 
+            ? gameState.customGemDefinitions[gemName]
+            : GEMS[gemName];
+        if (!definition) {
+            console.error(`Could not find definition for gem: ${gemName}`);
+        }
+        return definition;
+    }
+
     sendWave(emitterId: string) {
         if (gameState.status !== GameStatus.PLAYING) return;
         
         gameState.waveCount++;
 
         // 1. Trace solution path
-        const result = tracePath(this.secretGrid, this.secretGemMap, emitterId);
+        const result = tracePath(this.secretGrid, this.secretGemMap, emitterId, this);
         
         // 2. Trace player path
         const playerGrid = Array.from({ length: GRID_HEIGHT }, () => Array(GRID_WIDTH).fill(CellState.EMPTY));
         const playerGemMap = new Map<string, Gem>();
         gameState.playerGems.forEach(gem => this._paintGemOnGrid(gem, playerGrid, playerGemMap));
-        const playerResult = tracePath(playerGrid, playerGemMap, emitterId);
+        const playerResult = tracePath(playerGrid, playerGemMap, emitterId, this);
 
         // 3. Create log entry
         const logEntry = {
@@ -148,10 +162,10 @@ export class Game {
         // 3. Iterate and compare results for each emitter
         for (const emitterId of allEmitterIds) {
             // Trace on secret grid
-            const secretResult = tracePath(this.secretGrid, this.secretGemMap, emitterId);
+            const secretResult = tracePath(this.secretGrid, this.secretGemMap, emitterId, this);
             
             // Trace on player grid
-            const playerResult = tracePath(playerGrid, playerGemMap, emitterId);
+            const playerResult = tracePath(playerGrid, playerGemMap, emitterId, this);
     
             // Compare results by sorting colors to handle order differences.
             const secretColorsKey = [...secretResult.colors].sort().join(',');
@@ -171,7 +185,7 @@ export class Game {
         const alreadyPlaced = gameState.playerGems.some(gem => gem.name === gemName);
         if (alreadyPlaced) return;
 
-        const gemDef = GEMS[gemName];
+        const gemDef = this.getGemDefinition(gemName);
         if (!gemDef) return;
 
         const newGem: Gem = { 
@@ -279,7 +293,7 @@ export class Game {
         const playerGrid = Array.from({ length: GRID_HEIGHT }, () => Array(GRID_WIDTH).fill(CellState.EMPTY));
         const playerGemMap = new Map<string, Gem>();
         gameState.playerGems.forEach(gem => this._paintGemOnGrid(gem, playerGrid, playerGemMap));
-        const playerResult = tracePath(playerGrid, playerGemMap, gameState.previewSourceEmitterId);
+        const playerResult = tracePath(playerGrid, playerGemMap, gameState.previewSourceEmitterId, this);
         
         gameState.activePlayerPath = playerResult.path;
         gameState.activePlayerResult = playerResult;
@@ -296,7 +310,10 @@ export class Game {
         const widthA = gemA.gridPattern[0].length;
         const heightB = gemB.gridPattern.length;
         const widthB = gemB.gridPattern[0].length;
-        const isSchwarzInvolved = gemA.name === 'SCHWARZ' || gemB.name === 'SCHWARZ';
+
+        const gemDefA = this.getGemDefinition(gemA.name);
+        const gemDefB = this.getGemDefinition(gemB.name);
+        const isSchwarzInvolved = gemDefA?.special === 'absorbs' || gemDefB?.special === 'absorbs';
     
         // Check every cell of gem A against every cell of gem B
         for (let rA = 0; rA < heightA; rA++) {
@@ -390,7 +407,11 @@ export class Game {
     }
 
     updateSolutionButtonState() {
-        const requiredCount = GEM_SETS[gameState.difficulty!]?.length ?? 0;
+        const isCustom = gameState.difficulty === DIFFICULTIES.CUSTOM;
+        const requiredCount = isCustom 
+            ? gameState.customGemSet.length
+            : GEM_SETS[gameState.difficulty!]?.length ?? 0;
+            
         const allValid = gameState.playerGems.every(gem => gem.isValid);
         const correctCount = gameState.playerGems.length === requiredCount;
         this.ui.checkSolutionBtn.disabled = !(allValid && correctCount);
@@ -398,7 +419,14 @@ export class Game {
     
     private _placeSecretGems(): Gem[] {
         const placedGems: Gem[] = [];
-        const gemSet = GEM_SETS[gameState.difficulty!];
+        const isCustom = gameState.difficulty === DIFFICULTIES.CUSTOM;
+        const gemSet = isCustom ? gameState.customGemSet : GEM_SETS[gameState.difficulty!];
+
+        if (!gemSet || gemSet.length === 0) {
+            console.error("Gem set is empty for difficulty:", gameState.difficulty);
+            return [];
+        }
+
         let attempts = 0;
 
         while(placedGems.length < gemSet.length && attempts < 500) {
@@ -406,7 +434,9 @@ export class Game {
             placedGems.length = 0;
 
             for (const gemName of gemSet) {
-                const gemDef = GEMS[gemName];
+                const gemDef = this.getGemDefinition(gemName);
+                if (!gemDef) continue;
+                
                 let placed = false;
                 let singleGemAttempts = 0;
                 

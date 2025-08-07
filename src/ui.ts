@@ -1,6 +1,5 @@
-
 import { Game } from './game';
-import { GEMS, GEM_SETS, COLORS, COLOR_MIXING, DIFFICULTIES, COLOR_NAMES, RATINGS } from './constants';
+import { GEMS, GEM_SETS, COLORS, COLOR_MIXING, DIFFICULTIES, COLOR_NAMES, RATINGS, BASE_COLORS, CUSTOM_SHAPES } from './constants';
 import { gameState, Gem, LogEntry, GameStatus } from './state';
 import { CellState, GRID_WIDTH, GRID_HEIGHT } from './grid';
 import { EmitterButton } from './ui-objects';
@@ -15,6 +14,11 @@ type DragInfo = {
     offsetY: number;
 };
 
+type CustomCreatorState = {
+    selectedColorKey: string | null;
+    selectedShapeKey: string | null;
+    gems: any[]; // Array of created gem definitions
+};
 
 export class UI {
     game!: Game;
@@ -30,6 +34,15 @@ export class UI {
     difficultyOptions!: HTMLDivElement;
     btnBackToMain1!: HTMLButtonElement;
     
+    // Custom Creator Screen Elements
+    customColorSelector!: HTMLElement;
+    customShapeSelector!: HTMLElement;
+    btnAddCustomGem!: HTMLButtonElement;
+    customGemList!: HTMLElement;
+    customValidationFeedback!: HTMLElement;
+    btnStartCustomLevel!: HTMLButtonElement;
+    btnBackToDifficulty!: HTMLButtonElement;
+
     // Game Screen Elements
     boardWrapper!: HTMLElement;
     gemCanvas!: HTMLCanvasElement;
@@ -68,6 +81,13 @@ export class UI {
     private draggedItemInfo: DragInfo | null = null;
     private dragPos = { x: 0, y: 0 };
     private lastValidDropTarget = { x: -1, y: -1, isValid: false };
+    
+    // Custom Creator State
+    private customCreatorState: CustomCreatorState = {
+        selectedColorKey: null,
+        selectedShapeKey: null,
+        gems: [],
+    };
 
     // Sizing state for the entire 12x10 board
     cellWidth = 0;
@@ -87,6 +107,7 @@ export class UI {
     private cacheDOMElements() {
         this.screens.main = document.getElementById('screen-main')!;
         this.screens.difficulty = document.getElementById('screen-difficulty')!;
+        this.screens['custom-creator'] = document.getElementById('screen-custom-creator')!;
         this.screens.game = document.getElementById('screen-game')!;
         this.screens.end = document.getElementById('screen-end')!;
         
@@ -95,6 +116,15 @@ export class UI {
         
         this.difficultyOptions = document.getElementById('difficulty-options') as HTMLDivElement;
         this.btnBackToMain1 = document.getElementById('btn-back-to-main-1') as HTMLButtonElement;
+
+        // Custom Creator
+        this.customColorSelector = document.getElementById('custom-color-selector')!;
+        this.customShapeSelector = document.getElementById('custom-shape-selector')!;
+        this.btnAddCustomGem = document.getElementById('btn-add-custom-gem') as HTMLButtonElement;
+        this.customGemList = document.getElementById('custom-gem-list')!;
+        this.customValidationFeedback = document.getElementById('custom-validation-feedback')!;
+        this.btnStartCustomLevel = document.getElementById('btn-start-custom-level') as HTMLButtonElement;
+        this.btnBackToDifficulty = document.getElementById('btn-back-to-difficulty') as HTMLButtonElement;
 
         this.boardWrapper = document.getElementById('game-board-wrapper')!;
         
@@ -132,6 +162,7 @@ export class UI {
         });
         this.btnMenu.addEventListener('click', () => this.game.showMainMenu());
         this.btnBackToMain1.addEventListener('click', () => this.game.showMainMenu());
+        this.btnBackToDifficulty.addEventListener('click', () => this.game.showDifficultySelect());
         
         this.actionsTabBtn.addEventListener('click', () => this.switchTab('actions'));
         this.logTabBtn.addEventListener('click', () => this.switchTab('log'));
@@ -140,6 +171,10 @@ export class UI {
         this.checkSolutionBtn.addEventListener('click', () => this.game.checkSolution());
         this.giveUpBtn.addEventListener('click', () => this.game.giveUp());
         this.previewToggle.addEventListener('change', () => this.game.togglePlayerPathPreview());
+        
+        // Custom Creator Buttons
+        this.btnAddCustomGem.addEventListener('click', () => this._handleAddCustomGem());
+        this.btnStartCustomLevel.addEventListener('click', () => this._handleStartCustomLevel());
 
         // Keyboard navigation and actions
         this.gemCanvas.addEventListener('keydown', (e) => this.handleCanvasKeyDown(e));
@@ -148,7 +183,7 @@ export class UI {
                 if (gameState.difficulty) this.game.start(gameState.difficulty);
                 return;
             }
-            if (e.key === 'Escape' && (gameState.status === GameStatus.PLAYING || gameState.status === GameStatus.GAME_OVER)) {
+            if (e.key === 'Escape' && (gameState.status === GameStatus.PLAYING || gameState.status === GameStatus.GAME_OVER || gameState.status === GameStatus.CUSTOM_CREATOR)) {
                 this.game.showMainMenu();
                 return;
             }
@@ -207,8 +242,9 @@ export class UI {
         this.onBoardResize();
     }
 
-    showScreen(screenName: 'main' | 'difficulty' | 'game' | 'end') {
+    showScreen(screenName: 'main' | 'difficulty' | 'custom-creator' | 'game' | 'end') {
         if (screenName === 'difficulty') this.populateDifficultyOptions();
+        if (screenName === 'custom-creator') this._setupCustomCreator();
         
         Object.values(this.screens).forEach(s => s.classList.add('hidden'));
         this.screens[screenName].classList.remove('hidden');
@@ -226,13 +262,168 @@ export class UI {
             [DIFFICULTIES.MITTEL]: "Eine neue Herausforderung. Ein transparenter Prisma-Stein lenkt das Licht ab, ohne es zu färben.",
             [DIFFICULTIES.SCHWER]: "Expertenmodus. Neben dem transparenten kommt ein schwarzer, Licht absorbierender Stein in Spiel."
         };
-        Object.values(DIFFICULTIES).forEach(diff => {
+        [DIFFICULTIES.TRAINING, DIFFICULTIES.NORMAL, DIFFICULTIES.MITTEL, DIFFICULTIES.SCHWER].forEach(diff => {
             const btn = document.createElement('button');
             btn.innerHTML = `${diff}<div class="difficulty-desc">${descs[diff]}</div>`;
             btn.onclick = () => this.game.start(diff);
             this.difficultyOptions.appendChild(btn);
         });
+        
+        const customBtn = document.createElement('button');
+        customBtn.innerHTML = `Eigenes Level<div class="difficulty-desc">Wähle deine eigenen Steine und erstelle eine neue Herausforderung.</div>`;
+        customBtn.onclick = () => this.game.showCustomCreator();
+        this.difficultyOptions.appendChild(customBtn);
     }
+    
+    private _setupCustomCreator() {
+        this.customCreatorState = { selectedColorKey: null, selectedShapeKey: null, gems: [] };
+        this._populateCreatorSelectors();
+        this._updateCustomGemList();
+        this._validateCustomSet();
+    }
+    
+    private _populateCreatorSelectors() {
+        this.customColorSelector.innerHTML = '';
+        Object.entries(BASE_COLORS).forEach(([key, value]) => {
+            const div = document.createElement('div');
+            div.className = 'color-choice';
+            div.dataset.colorKey = key;
+            div.style.backgroundColor = value.color;
+            if (key === 'TRANSPARENT') {
+                div.style.border = `2px solid ${COLORS.TRANSPARENT}`;
+                div.style.backgroundColor = 'rgba(164, 212, 228, 0.3)';
+            }
+            div.title = value.name;
+            div.onclick = () => {
+                this.customCreatorState.selectedColorKey = key;
+                this.customColorSelector.querySelectorAll('.color-choice').forEach(el => el.classList.remove('selected'));
+                div.classList.add('selected');
+            };
+            this.customColorSelector.appendChild(div);
+        });
+
+        this.customShapeSelector.innerHTML = '';
+        Object.entries(CUSTOM_SHAPES).forEach(([key, value]) => {
+            const div = document.createElement('div');
+            div.className = 'shape-choice';
+            div.dataset.shapeKey = key;
+            div.title = value.name;
+            const canvas = document.createElement('canvas');
+            div.appendChild(canvas);
+            
+            div.onclick = () => {
+                this.customCreatorState.selectedShapeKey = key;
+                this.customShapeSelector.querySelectorAll('.shape-choice').forEach(el => el.classList.remove('selected'));
+                div.classList.add('selected');
+            };
+            this.customShapeSelector.appendChild(div);
+            // Draw after a delay to ensure element is in DOM and has size
+            setTimeout(() => this.drawToolbarGem(canvas, value), 0);
+        });
+    }
+    
+    private _handleAddCustomGem() {
+        const { selectedColorKey, selectedShapeKey } = this.customCreatorState;
+        if (!selectedColorKey || !selectedShapeKey) {
+            alert("Bitte wähle zuerst eine Farbe und eine Form aus.");
+            return;
+        }
+    
+        const colorDef = BASE_COLORS[selectedColorKey];
+        const shapeDef = CUSTOM_SHAPES[selectedShapeKey];
+        
+        let finalGridPattern = shapeDef.gridPattern;
+    
+        // If the color is black, convert the shape's pattern to an absorbing pattern.
+        if (selectedColorKey === 'SCHWARZ') {
+            finalGridPattern = shapeDef.gridPattern.map(row =>
+                row.map(cell => (cell !== CellState.EMPTY ? CellState.ABSORB : CellState.EMPTY))
+            );
+        }
+        
+        // Create a unique name for the new gem definition
+        const gemName = `CUSTOM_${selectedColorKey}_${selectedShapeKey}_${Date.now()}`;
+        
+        const newGemDef = {
+            ...colorDef,
+            ...shapeDef,
+            gridPattern: finalGridPattern, // Use the potentially modified pattern
+            name: gemName, // a unique name for this instance
+            originalColorKey: selectedColorKey, // store for validation
+        };
+        
+        this.customCreatorState.gems.push(newGemDef);
+        this._updateCustomGemList();
+        this._validateCustomSet();
+    }
+    
+    private _updateCustomGemList() {
+        this.customGemList.innerHTML = '';
+        this.customCreatorState.gems.forEach((gemDef, index) => {
+            const item = document.createElement('div');
+            item.className = 'custom-gem-item';
+            const canvas = document.createElement('canvas');
+            item.appendChild(canvas);
+            
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'delete-gem-btn';
+            deleteBtn.innerHTML = '&times;';
+            deleteBtn.title = 'Entfernen';
+            deleteBtn.onclick = () => {
+                this.customCreatorState.gems.splice(index, 1);
+                this._updateCustomGemList();
+                this._validateCustomSet();
+            };
+            item.appendChild(deleteBtn);
+            
+            this.customGemList.appendChild(item);
+            setTimeout(() => this.drawToolbarGem(canvas, gemDef), 0);
+        });
+    }
+
+    private _validateCustomSet() {
+        const gems = this.customCreatorState.gems;
+        const counts = { ROT: 0, GELB: 0, BLAU: 0, WEISS: 0, TRANSPARENT: 0, SCHWARZ: 0 };
+        gems.forEach(g => {
+            if (counts.hasOwnProperty(g.originalColorKey)) {
+                counts[g.originalColorKey as keyof typeof counts]++;
+            }
+        });
+
+        let isValid = true;
+        let feedbackHtml = '';
+
+        const checkRule = (label: string, condition: boolean, errorMsg: string) => {
+            if (condition) {
+                feedbackHtml += `<div class="valid">✅ ${label}</div>`;
+            } else {
+                feedbackHtml += `<div class="invalid">❌ ${errorMsg}</div>`;
+                isValid = false;
+            }
+        };
+        
+        checkRule("1x Rot", counts.ROT === 1, "Benötigt: <strong>genau 1 roten</strong> Stein");
+        checkRule("1x Gelb", counts.GELB === 1, "Benötigt: <strong>genau 1 gelben</strong> Stein");
+        checkRule("1x Blau", counts.BLAU === 1, "Benötigt: <strong>genau 1 blauen</strong> Stein");
+        checkRule("Mind. 1x Weiss", counts.WEISS >= 1, "Benötigt: <strong>mindestens 1 weissen</strong> Stein");
+        checkRule("Max. 2x Weiss", counts.WEISS <= 2, "Erlaubt: <strong>maximal 2 weisse</strong> Steine");
+        checkRule("Max. 2x Transparent", counts.TRANSPARENT <= 2, "Erlaubt: <strong>maximal 2 transparente</strong> Steine");
+        checkRule("Max. 1x Schwarz", counts.SCHWARZ <= 1, "Erlaubt: <strong>maximal 1 schwarzen</strong> Stein");
+        
+        this.customValidationFeedback.innerHTML = feedbackHtml;
+        this.btnStartCustomLevel.disabled = !isValid;
+    }
+    
+    private _handleStartCustomLevel() {
+        if (this.btnStartCustomLevel.disabled) return;
+        
+        const customGems = this.customCreatorState.gems;
+        gameState.customGemSet = customGems.map(g => g.name);
+        gameState.customGemDefinitions = Object.fromEntries(customGems.map(g => [g.name, g]));
+        
+        this.game.start(DIFFICULTIES.CUSTOM);
+    }
+
 
     private _createEmitterObjects() {
         this.emitters = [];
@@ -284,30 +475,38 @@ export class UI {
 
         this.redrawAll();
     }
+    
+    private getGemDefinition(gemName: string): any | undefined {
+        const isCustom = gameState.difficulty === DIFFICULTIES.CUSTOM;
+        return isCustom ? gameState.customGemDefinitions[gemName] : GEMS[gemName];
+    }
 
     private _getGemTooltip(gemName: string): string {
-        const gemDef = GEMS[gemName];
+        const gemDef = this.getGemDefinition(gemName);
         if (!gemDef) return '';
     
-        switch (gemName) {
-            case 'TRANSPARENT': return "Reflektiert nur, färbt nicht.";
-            case 'SCHWARZ': return "Absorbiert Licht.";
-            default:
-                if (gemDef.baseGems && gemDef.baseGems.length > 0) {
-                    const colorKey = gemDef.baseGems[0];
-                    const colorDisplayName = COLOR_NAMES[colorKey]?.toLowerCase();
-                    return `Fügt Farbe '${colorDisplayName}' hinzu.`;
-                }
-                return `Edelstein ${gemName}`;
-        }
+        if (gemDef.special === 'absorbs') return "Absorbiert Licht.";
+        if (gemDef.baseGems.length === 0) return "Reflektiert nur, färbt nicht.";
+       
+        const colorKey = gemDef.baseGems[0];
+        const colorDisplayName = COLOR_NAMES[colorKey]?.toLowerCase() || 'unbekannt';
+        return `Fügt Farbe '${colorDisplayName}' hinzu.`;
     }
 
     updateToolbar() {
         this.gemToolbar.innerHTML = '';
         if (!gameState.difficulty) return;
+        
+        const isCustom = gameState.difficulty === DIFFICULTIES.CUSTOM;
+        const gemSet = isCustom ? gameState.customGemSet : GEM_SETS[gameState.difficulty];
+        if (!gemSet) return;
+        
         const placedGemNames = new Set(gameState.playerGems.map(g => g.name));
-        GEM_SETS[gameState.difficulty].forEach(gemName => {
-            const gemDef = GEMS[gemName];
+
+        gemSet.forEach(gemName => {
+            const gemDef = this.getGemDefinition(gemName);
+            if (!gemDef) return;
+
             const div = document.createElement('div');
             div.className = 'toolbar-gem';
             if (placedGemNames.has(gemName)) div.classList.add('placed');
@@ -324,6 +523,7 @@ export class UI {
     private drawToolbarGem(canvas: HTMLCanvasElement, gemDef: any) {
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
+        
         const dpr = window.devicePixelRatio || 1;
         const rect = canvas.getBoundingClientRect();
         
@@ -332,22 +532,31 @@ export class UI {
         canvas.width = rect.width * dpr;
         canvas.height = rect.height * dpr;
         ctx.scale(dpr, dpr);
+        ctx.clearRect(0, 0, rect.width, rect.height);
 
         const pattern = gemDef.gridPattern;
         const pHeight = pattern.length;
         const pWidth = pattern[0].length;
-        const maxDim = Math.max(pWidth, pHeight);
         
-        const cellW = rect.width / maxDim;
-        const cellH = rect.height / maxDim;
-        const offsetX = (rect.width - pWidth * cellW) / 2;
-        const offsetY = (rect.height - pHeight * cellH) / 2;
+        // Calculate the scale to fit the entire pattern within the canvas, preserving aspect ratio
+        const scale = Math.min(rect.width / pWidth, rect.height / pHeight);
+        
+        const cellSize = scale; // Each cell of the pattern grid will be a square of this size
+        
+        const renderedWidth = pWidth * cellSize;
+        const renderedHeight = pHeight * cellSize;
+        
+        const offsetX = (rect.width - renderedWidth) / 2;
+        const offsetY = (rect.height - renderedHeight) / 2;
+
+        const color = gemDef.color || '#bdc3c7';
 
         for (let r = 0; r < pHeight; r++) {
             for (let c = 0; c < pWidth; c++) {
                 const state = pattern[r][c];
                 if (state !== CellState.EMPTY) {
-                    this.drawCellShape(ctx, c * cellW + offsetX, r * cellH + offsetY, cellW, cellH, state, gemDef.color);
+                    // Pass cellSize for both width and height to ensure cells are square
+                    this.drawCellShape(ctx, c * cellSize + offsetX, r * cellSize + offsetY, cellSize, cellSize, state, color);
                 }
             }
         }
@@ -407,7 +616,8 @@ export class UI {
     private drawDragPreview(ctx: CanvasRenderingContext2D) {
         if (!this.draggedItemInfo) return;
         const { gridPattern, name, id } = this.draggedItemInfo;
-        const gemDef = GEMS[name];
+        const gemDef = this.getGemDefinition(name);
+        if (!gemDef) return;
         
         const pWidth = gridPattern[0].length;
         const pHeight = gridPattern.length;
@@ -442,7 +652,10 @@ export class UI {
             if (this.isDragging && this.draggedItemInfo?.from === 'board' && this.draggedItemInfo.id === gem.id) continue;
             
             const { gridPattern, x, y, name } = gem;
-            const color = GEMS[name].color;
+            const gemDef = this.getGemDefinition(name);
+            if (!gemDef) continue;
+
+            const color = gemDef.color;
             const isInvalid = !gem.isValid;
             
             let isHovered = false;
@@ -505,7 +718,10 @@ export class UI {
     
         for (const gem of gameState.secretGems) {
             const { gridPattern, x, y, name } = gem;
-            const color = GEMS[name].color;
+            const gemDef = this.getGemDefinition(name);
+            if (!gemDef) continue;
+            
+            const color = gemDef.color;
     
             ctx.globalAlpha = 0.2; // All solution gems are transparent in debug mode
     
@@ -794,7 +1010,10 @@ export class UI {
             ctx.save();
             ctx.globalAlpha = opacity;
             for (const gem of gems) {
-                const color = GEMS[gem.name].color;
+                const gemDef = this.getGemDefinition(gem.name);
+                if (!gemDef) continue;
+
+                const color = gemDef.color;
                 const isInvalid = highlightInvalid ? !gem.isValid : false;
     
                 for (let r = 0; r < gem.gridPattern.length; r++) {
@@ -1007,7 +1226,10 @@ export class UI {
             offsetX = clientX - rect.left;
             offsetY = clientY - rect.top;
             const name = (toolbarGemEl as HTMLElement).dataset.gemName!;
-            potentialDragItem = { name, from: 'toolbar', gridPattern: GEMS[name].gridPattern, element: (toolbarGemEl as HTMLElement), offsetX, offsetY };
+            const gemDef = this.getGemDefinition(name);
+            if(gemDef) {
+                potentialDragItem = { name, from: 'toolbar', gridPattern: gemDef.gridPattern, element: (toolbarGemEl as HTMLElement), offsetX, offsetY };
+            }
         } else if (isOverCanvas) {
             const canvasRect = this.gemCanvas.getBoundingClientRect();
             const x = clientX - canvasRect.left;

@@ -1,5 +1,3 @@
-
-
 import { CellState } from "./grid";
 
 export const DIFFICULTIES = {
@@ -7,6 +5,7 @@ export const DIFFICULTIES = {
     NORMAL: 'Normal',
     MITTEL: 'Mittel',
     SCHWER: 'Schwer',
+    CUSTOM: 'Eigenes Level',
 };
 
 export const COLORS = {
@@ -32,6 +31,15 @@ export const COLORS = {
     INVALID_GEM: '#e74c3c',
 };
 
+export const BASE_COLORS: { [key: string]: { name: string, color: string, baseGems: string[], special?: string } } = {
+    ROT: { name: 'Rot', color: COLORS.ROT, baseGems: ['ROT'] },
+    GELB: { name: 'Gelb', color: COLORS.GELB, baseGems: ['GELB'] },
+    BLAU: { name: 'Blau', color: COLORS.BLAU, baseGems: ['BLAU'] },
+    WEISS: { name: 'Weiss', color: COLORS.WEISS, baseGems: ['WEISS'] },
+    TRANSPARENT: { name: 'Transparent', color: COLORS.TRANSPARENT, baseGems: [] },
+    SCHWARZ: { name: 'Schwarz', color: COLORS.SCHWARZ_GEM, baseGems: [], special: 'absorbs' },
+};
+
 export const COLOR_MIXING: { [key: string]: string } = {
     'BLAU': COLORS.BLAU,
     'GELB': COLORS.GELB,
@@ -55,6 +63,8 @@ export const COLOR_NAMES: { [key: string]: string } = {
     'GELB': 'Gelb',
     'ROT': 'Rot',
     'WEISS': 'Weiss',
+    'TRANSPARENT': 'Transparent',
+    'SCHWARZ': 'Schwarz',
     'BLAU,ROT': 'Lila',
     'BLAU,WEISS': 'Himmelblau',
     'BLAU,GELB': 'Grün',
@@ -115,8 +125,22 @@ export const GEMS: { [key: string]: any } = {
     },
 };
 
+export const CUSTOM_SHAPES: { [key: string]: { name: string, gridPattern: CellState[][] } } = {
+    SHAPE_RTRIANGLE: { name: 'Rechtwinkliges Dreieck', gridPattern: GEMS.GELB.gridPattern },
+    SHAPE_PARALLEL: { name: 'Parallelogramm', gridPattern: GEMS.ROT.gridPattern },
+    SHAPE_BIG_TRIANGLE: { name: 'Grosses Dreieck', gridPattern: GEMS.BLAU.gridPattern },
+    SHAPE_DIAMOND: { name: 'Raute', gridPattern: GEMS.WEISS_RAUTE.gridPattern },
+    SHAPE_SMALL_TRIANGLE: { name: 'Kleines Dreieck', gridPattern: GEMS.TRANSPARENT.gridPattern },
+    SHAPE_ABSORBER: { name: 'Absorber', gridPattern: GEMS.SCHWARZ.gridPattern },
+    SHAPE_L: { name: 'L-Form', gridPattern: [[CellState.BLOCK, CellState.TRIANGLE_BL], [CellState.BLOCK, CellState.BLOCK]] },
+    SHAPE_T: { name: 'T-Form', gridPattern: [[CellState.BLOCK, CellState.BLOCK, CellState.BLOCK], [CellState.TRIANGLE_TR, CellState.BLOCK, CellState.TRIANGLE_TL]] },
+    SHAPE_SQUARE: { name: 'Quadrat', gridPattern: [[CellState.TRIANGLE_BR, CellState.BLOCK], [CellState.BLOCK, CellState.TRIANGLE_TL]] },
+    SHAPE_BAR: { name: 'Stab', gridPattern: [[CellState.TRIANGLE_BL], [CellState.BLOCK], [CellState.TRIANGLE_TL]] },
+};
+
+
 export const GEM_SETS: { [key: string]: string[] } = {
-    [DIFFICULTIES.TRAINING]: ['GELB', 'ROT', 'BLAU', 'WEISS_RAUTE', 'WEISS_DREIECK'],
+    [DIFFICULTIES.TRAINING]: ['GELB', 'ROT', 'BLAU', 'WEISS_RAUTE'],
     [DIFFICULTIES.NORMAL]: ['GELB', 'ROT', 'BLAU', 'WEISS_RAUTE', 'WEISS_DREIECK'],
     [DIFFICULTIES.MITTEL]: ['GELB', 'ROT', 'BLAU', 'WEISS_RAUTE', 'WEISS_DREIECK', 'TRANSPARENT'],
     [DIFFICULTIES.SCHWER]: ['GELB', 'ROT', 'BLAU', 'WEISS_RAUTE', 'WEISS_DREIECK', 'TRANSPARENT', 'SCHWARZ'],
@@ -144,6 +168,13 @@ export const RATINGS: { [key: string]: { limit: number; text: string }[] } = {
         { limit: Infinity, text: 'Geduld und Spucke führen zum Ziel!' },
     ],
     [DIFFICULTIES.SCHWER]: [
+        { limit: 15, text: 'Legendär! Eine Leistung für die Geschichtsbücher.' },
+        { limit: 18, text: 'Herausragend! Selbst Experten staunen.' },
+        { limit: 21, text: 'Experten-Niveau! Du hast es wirklich drauf.' },
+        { limit: 25, text: 'Ein hartes Stück Arbeit, aber erfolgreich!' },
+        { limit: Infinity, text: 'Puh, das war knapp, aber gewonnen!' },
+    ],
+    [DIFFICULTIES.CUSTOM]: [ // Same as 'Schwer'
         { limit: 15, text: 'Legendär! Eine Leistung für die Geschichtsbücher.' },
         { limit: 18, text: 'Herausragend! Selbst Experten staunen.' },
         { limit: 21, text: 'Experten-Niveau! Du hast es wirklich drauf.' },

@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Orapa Mine</title>
-  <script type="module" crossorigin src="./assets/index-DETBzKKb.js"></script>
-  <link rel="stylesheet" crossorigin href="./assets/index-BXF2hM0c.css">
+  <script type="module" crossorigin src="./assets/index-9jWo2qvA.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-D6ReZWjE.css">
 </head>
 <body>
     <div id="app">
@@ -32,6 +32,36 @@
             </div>
         </div>
         
+        <!-- Custom Level Creator Screen -->
+        <div id="screen-custom-creator" class="screen hidden">
+             <div class="screen-content custom-creator-layout">
+                <h2 class="subtitle">Eigenes Level erstellen</h2>
+                
+                <div class="creator-main-content">
+                    <div class="creator-config">
+                        <h4>1. Farbe wählen</h4>
+                        <div id="custom-color-selector" class="selector-grid"></div>
+                        
+                        <h4>2. Form wählen</h4>
+                        <div id="custom-shape-selector" class="selector-grid"></div>
+                        
+                        <button id="btn-add-custom-gem" class="add-gem-button">Edelstein hinzufügen +</button>
+                    </div>
+                    
+                    <div class="creator-preview">
+                        <h4>Level-Set (deine Auswahl)</h4>
+                        <div id="custom-gem-list"></div>
+                        <div id="custom-validation-feedback"></div>
+                    </div>
+                </div>
+                
+                <div class="menu-buttons">
+                    <button id="btn-start-custom-level" disabled>Level starten</button>
+                    <button id="btn-back-to-difficulty" class="btn-back">Zurück</button>
+                </div>
+            </div>
+        </div>
+
         <!-- End Screen -->
         <div id="screen-end" class="screen hidden">
             <div class="end-content-container">

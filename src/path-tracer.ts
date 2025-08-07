@@ -1,5 +1,4 @@
-
-import { GEMS } from './constants';
+import { Game } from './game';
 import { gameState, Gem } from './state';
 import { CellState, GRID_WIDTH, GRID_HEIGHT } from './grid';
 import { Direction, getReflection } from './physics';
@@ -39,12 +38,14 @@ function move(pos: { x: number; y: number }, dir: Direction): void {
  * @param grid The logic grid with CellState values.
  * @param gemMap A map from "y,x" coordinates to the Gem occupying that cell.
  * @param emitterId The starting emitter ID (e.g., 'T1').
+ * @param game The game instance, used to get gem definitions.
  * @returns An object with the path result and the visual path.
  */
 export function tracePath(
     grid: CellState[][], 
     gemMap: Map<string, Gem>, 
-    emitterId: string
+    emitterId: string,
+    game: Game
 ) {
     const startDetails = getEmitterDetails(emitterId);
     if (!startDetails) {
@@ -97,8 +98,9 @@ export function tracePath(
         const hitGem = gemMap.get(gemKey);
         if (hitGem && !hitGems.has(hitGem.id)) {
             hitGems.add(hitGem.id);
-            const gemDef = GEMS[hitGem.name];
-            if (gemDef.baseGems) {
+            // This is the key change: use the game instance to get the definition
+            const gemDef = (game as any).getGemDefinition(hitGem.name); 
+            if (gemDef && gemDef.baseGems) {
                 gemDef.baseGems.forEach((c: string) => hitColors.add(c));
             }
         }
