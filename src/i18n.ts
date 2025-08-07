@@ -1,0 +1,397 @@
+
+export type Language = 'de' | 'en';
+
+const translations = {
+    de: {
+        lang: {
+            name: "Deutsch",
+            flag: "🇩🇪",
+            switch: "Sprache wechseln",
+        },
+        mainMenu: {
+            startGame: "Spiel starten",
+        },
+        difficulty: {
+            title: "Schwierigkeitsgrad",
+            TRAINING: "Training",
+            TRAINING_desc: "Ideal zum Lernen des Spiels, mit dem Verlauf der Lichtstrahlen.",
+            NORMAL: "Normal",
+            NORMAL_desc: "Die Grundlagen. Lerne die farbigen und weissen Steine kennen.",
+            MEDIUM: "Mittel",
+            MEDIUM_desc: "Eine neue Herausforderung. Ein transparenter Prisma-Stein lenkt das Licht ab, ohne es zu färben.",
+            HARD: "Schwer",
+            HARD_desc: "Expertenmodus. Neben dem transparenten kommt ein schwarzer, Licht absorbierender Stein in Spiel.",
+            CUSTOM: "Eigenes Level",
+            CUSTOM_desc: "Wähle deine eigenen Steine und erstelle eine neue Herausforderung."
+        },
+        customCreator: {
+            title: "Eigenes Level erstellen",
+            selectColor: "1. Farbe wählen",
+            selectShape: "2. Form wählen",
+            addGem: "Edelstein hinzufügen +",
+            levelSet: "Level-Set (deine Auswahl)",
+            startLevel: "Level starten",
+            alert: {
+                selectColorAndShape: "Bitte wähle zuerst eine Farbe und eine Form aus."
+            }
+        },
+        gameScreen: {
+            tabs: {
+                actions: "Aktionen",
+                logbook: "Logbuch",
+                rules: "Regeln",
+            },
+            availableGems: "Verfügbare Edelsteine:",
+            showPath: "Aktuellen Lichtweg anzeigen (F)"
+        },
+        endScreen: {
+            winTitle: "Gewonnen!",
+            lossTitle: "Verloren!",
+            stats: "Du hast die Mine in {{count}} Abfragen gelöst.",
+            retry: "Bitte versuche es erneut.",
+            solutionLabel: {
+                correct: "Korrekte Lösung:",
+                alternative: "Alternative Lösung gefunden! Deine Lösung (transparent):",
+                yourInput: "Deine Eingabe (über der korrekten Lösung):",
+            },
+            ratingLegendTitle: "Bewertung für {{difficulty}}",
+            ratingLegend: {
+                upTo: "bis {{end}} Abfragen",
+                range: "{{start}} - {{end}} Abfragen",
+                moreThan: "mehr als {{start}} Abfragen",
+            }
+        },
+        buttons: {
+            back: "Zurück",
+            newLevel: "Neues Level",
+            menu: "Menü",
+            submitSolution: "Lösung einreichen",
+            giveUp: "Aufgeben",
+            remove: "Entfernen",
+        },
+        rules: {
+            title: "Spielanleitung",
+            objectiveTitle: "Ziel:",
+            objective: "Finde die Position und Ausrichtung der versteckten Edelsteine.",
+            item1: "Sende Lichtwellen von den Rändern in das Spielfeld.",
+            item2: "Die austretende Farbe und Position verraten, welche Steine getroffen wurden.",
+            item3: "Ziehe Edelsteine aus der Werkzeugleiste auf das Feld. Du kannst sie verschieben und drehen.",
+            item4: "Ein Klick auf einen platzierten Stein dreht ihn um 90°.",
+            item5: "Steine dürfen sich nicht überlappen oder Kante an Kante liegen.",
+            item6: "Drücke 'n' für ein neues Level oder 'esc' um zum Menü zurückzukehren.",
+            colorMixingTitle: "Farbmischung",
+            colorMixingDesc: "Wenn ein Lichtstrahl mehrere farbige Steine durchquert, mischen sich ihre Farben:",
+            basicRules: "Grundregeln",
+            panel: {
+                item1: "Sende Lichtwellen, um zu sehen, wo sie austreten und welche Farbe sie haben.",
+                item2: "Ziehe die Edelsteine auf das Feld, um die Lösung nachzubauen.",
+                item3: "Klicke auf einen platzierten Stein, um ihn zu drehen.",
+                item4: "Steine dürfen sich nicht überlappen oder Kante an Kante liegen.",
+            }
+        },
+        tooltips: {
+            absorbs: "Absorbiert Licht.",
+            reflectsOnly: "Reflektiert nur, färbt nicht.",
+            addsColor: "Fügt Farbe '{{color}}' hinzu."
+        },
+        colors: {
+            red: 'Rot',
+            yellow: 'Gelb',
+            blue: 'Blau',
+            white: 'Weiss',
+            transparent: 'Transparent',
+            black: 'Schwarz',
+            purple: 'Lila',
+            skyBlue: 'Himmelblau',
+            green: 'Grün',
+            lightRed: 'Hellrot',
+            orange: 'Orange',
+            lightYellow: 'Hellgelb',
+            lightPurple: 'Hell-Lila',
+            darkGray: 'Dunkelgrau',
+            lightGreen: 'Hellgrün',
+            lightOrange: 'Hell-Orange',
+            gray: 'Grau',
+        },
+        shapes: {
+            rightTriangle: "Rechtwinkliges Dreieck",
+            parallelogram: "Parallelogramm",
+            bigTriangle: "Grosses Dreieck",
+            diamond: "Raute",
+            smallTriangle: "Kleines Dreieck",
+            absorber: "Absorber",
+            lShape: "L-Form",
+            tShape: "T-Form",
+            square: "Quadrat",
+            bar: "Stab",
+            small: "Klein",
+            strange: "Seltsam",
+        },
+        log: {
+            absorbed: "Absorbiert",
+            noColor: "Keine Farbe",
+            unknownMix: "Unbekannte Mischung",
+        },
+        validation: {
+            exactOneRed: "Benötigt: <strong>genau 1 roten</strong> Stein",
+            exactOneYellow: "Benötigt: <strong>genau 1 gelben</strong> Stein",
+            exactOneBlue: "Benötigt: <strong>genau 1 blauen</strong> Stein",
+            atLeastOneWhite: "Benötigt: <strong>mindestens 1 weissen</strong> Stein",
+            maxTwoWhite: "Erlaubt: <strong>maximal 2 weisse</strong> Steine",
+            maxTwoTransparent: "Erlaubt: <strong>maximal 2 transparente</strong> Steine",
+            maxOneBlack: "Erlaubt: <strong>maximal 1 schwarzen</strong> Stein",
+            levelIsValid: "Level ist valide",
+        },
+        ratings: {
+            training: {
+                "1": "Sehr gut", "2": "Gut", "3": "Normal", "4": "Verbesserungsfähig"
+            },
+            normal: {
+                "1": "Ein wahrer Experte bei der Edelsteinsuche", "2": "Ein Profi, dem kaum einer was vormacht", "3": "Guter Edelsteinsucher", "4": "Juhu, alle Edelsteine gefunden!", "5": "Immerhin alle Edelsteine gefunden."
+            },
+            medium: {
+                "1": "Meisterlich! Kaum eine Abfrage zu viel.", "2": "Sehr beeindruckend! Du kennst dich aus.", "3": "Starke Leistung! Du hast den Dreh raus.", "4": "Gut gemacht! Alle Schätze geborgen.", "5": "Geduld und Spucke führen zum Ziel!"
+            },
+            hard: {
+                "1": "Legendär! Eine Leistung für die Geschichtsbücher.", "2": "Herausragend! Selbst Experten staunen.", "3": "Experten-Niveau! Du hast es wirklich drauf.", "4": "Ein hartes Stück Arbeit, aber erfolgreich!", "5": "Puh, das war knapp, aber gewonnen!"
+            },
+        }
+    },
+    en: {
+        lang: {
+            name: "English",
+            flag: "🇬🇧",
+            switch: "Change language",
+        },
+        mainMenu: {
+            startGame: "Start Game",
+        },
+        difficulty: {
+            title: "Difficulty",
+            TRAINING: "Training",
+            TRAINING_desc: "Ideal for learning the game, shows the path of light rays.",
+            NORMAL: "Normal",
+            NORMAL_desc: "The basics. Get to know the colored and white gems.",
+            MEDIUM: "Medium",
+            MEDIUM_desc: "A new challenge. A transparent prism gem deflects light without coloring it.",
+            HARD: "Hard",
+            HARD_desc: "Expert mode. In addition to the transparent gem, a black, light-absorbing gem comes into play.",
+            CUSTOM: "Custom Level",
+            CUSTOM_desc: "Choose your own gems and create a new challenge."
+        },
+        customCreator: {
+            title: "Create Custom Level",
+            selectColor: "1. Select Color",
+            selectShape: "2. Select Shape",
+            addGem: "Add Gem +",
+            levelSet: "Level Set (Your Selection)",
+            startLevel: "Start Level",
+            alert: {
+                selectColorAndShape: "Please select a color and a shape first."
+            }
+        },
+        gameScreen: {
+            tabs: {
+                actions: "Actions",
+                logbook: "Logbook",
+                rules: "Rules",
+            },
+            availableGems: "Available Gems:",
+            showPath: "Show current light path (F)"
+        },
+        endScreen: {
+            winTitle: "You Win!",
+            lossTitle: "You Lose!",
+            stats: "You solved the mine in {{count}} queries.",
+            retry: "Please try again.",
+            solutionLabel: {
+                correct: "Correct Solution:",
+                alternative: "Alternative solution found! Your solution (transparent):",
+                yourInput: "Your input (over the correct solution):",
+            },
+            ratingLegendTitle: "Rating for {{difficulty}}",
+            ratingLegend: {
+                upTo: "up to {{end}} queries",
+                range: "{{start}} - {{end}} queries",
+                moreThan: "more than {{start}} queries",
+            }
+        },
+        buttons: {
+            back: "Back",
+            newLevel: "New Level",
+            menu: "Menu",
+            submitSolution: "Submit Solution",
+            giveUp: "Give Up",
+            remove: "Remove",
+        },
+        rules: {
+            title: "How to Play",
+            objectiveTitle: "Goal:",
+            objective: "Find the position and orientation of the hidden gems.",
+            item1: "Send light waves from the edges into the game board.",
+            item2: "The exiting color and position reveal which gems were hit.",
+            item3: "Drag gems from the toolbar onto the board. You can move and rotate them.",
+            item4: "Clicking on a placed gem rotates it by 90°.",
+            item5: "Gems cannot overlap or be edge-to-edge.",
+            item6: "Press 'n' for a new level or 'esc' to return to the menu.",
+            colorMixingTitle: "Color Mixing",
+            colorMixingDesc: "When a light beam passes through multiple colored gems, their colors mix:",
+            basicRules: "Basic Rules",
+            panel: {
+                item1: "Send light waves to see where they exit and what color they have.",
+                item2: "Drag the gems onto the board to replicate the solution.",
+                item3: "Click on a placed gem to rotate it.",
+                item4: "Gems cannot overlap or be edge-to-edge.",
+            }
+        },
+        tooltips: {
+            absorbs: "Absorbs light.",
+            reflectsOnly: "Only reflects, does not color.",
+            addsColor: "Adds '{{color}}' color."
+        },
+        colors: {
+            red: 'Red',
+            yellow: 'Yellow',
+            blue: 'Blue',
+            white: 'White',
+            transparent: 'Transparent',
+            black: 'Black',
+            purple: 'Purple',
+            skyBlue: 'Sky Blue',
+            green: 'Green',
+            lightRed: 'Light Red',
+            orange: 'Orange',
+            lightYellow: 'Light Yellow',
+            lightPurple: 'Light Purple',
+            darkGray: 'Dark Gray',
+            lightGreen: 'Light Green',
+            lightOrange: 'Light Orange',
+            gray: 'Gray',
+        },
+        shapes: {
+            rightTriangle: "Right Triangle",
+            parallelogram: "Parallelogram",
+            bigTriangle: "Large Triangle",
+            diamond: "Diamond",
+            smallTriangle: "Small Triangle",
+            absorber: "Absorber",
+            lShape: "L-Shape",
+            tShape: "T-Shape",
+            square: "Square",
+            bar: "Bar",
+            small: "Small",
+            strange: "Strange",
+        },
+        log: {
+            absorbed: "Absorbed",
+            noColor: "No Color",
+            unknownMix: "Unknown Mix",
+        },
+        validation: {
+            exactOneRed: "Requires: <strong>exactly 1 red</strong> gem",
+            exactOneYellow: "Requires: <strong>exactly 1 yellow</strong> gem",
+            exactOneBlue: "Requires: <strong>exactly 1 blue</strong> gem",
+            atLeastOneWhite: "Requires: <strong>at least 1 white</strong> gem",
+            maxTwoWhite: "Allowed: <strong>maximum of 2 white</strong> gems",
+            maxTwoTransparent: "Allowed: <strong>maximum of 2 transparent</strong> gems",
+            maxOneBlack: "Allowed: <strong>maximum of 1 black</strong> gem",
+            levelIsValid: "Level is valid",
+        },
+        ratings: {
+            training: {
+                "1": "Very good", "2": "Good", "3": "Average", "4": "Needs improvement"
+            },
+            normal: {
+                "1": "A true gem-finding expert", "2": "A pro who can't be fooled", "3": "Good gem hunter", "4": "Yay, all gems found!", "5": "At least all gems were found."
+            },
+            medium: {
+                "1": "Masterful! Hardly a query wasted.", "2": "Very impressive! You know your stuff.", "3": "Strong performance! You've got the hang of it.", "4": "Well done! All treasures recovered.", "5": "Patience and persistence lead to success!"
+            },
+            hard: {
+                "1": "Legendary! A performance for the history books.", "2": "Outstanding! Even experts are amazed.", "3": "Expert level! You've really got it.", "4": "A tough job, but successful!", "5": "Phew, that was close, but you won!"
+            },
+        }
+    }
+};
+
+/**
+ * Determines the initial language based on stored preference or browser language.
+ * Priority:
+ * 1. Language explicitly set by the user and stored in localStorage.
+ * 2. Browser's language setting (if German).
+ * 3. English as a fallback.
+ */
+function determineInitialLanguage(): Language {
+    const savedLang = localStorage.getItem('orapa-lang');
+    if (savedLang === 'de' || savedLang === 'en') {
+        return savedLang as Language;
+    }
+
+    const browserLang = navigator.language.slice(0, 2).toLowerCase();
+    if (browserLang === 'de') {
+        return 'de';
+    }
+
+    return 'en';
+}
+
+let currentLang: Language = determineInitialLanguage();
+
+const listeners: (() => void)[] = [];
+
+export function onLanguageChange(callback: () => void) {
+    listeners.push(callback);
+}
+
+function notifyListeners() {
+    listeners.forEach(cb => cb());
+    document.documentElement.lang = currentLang;
+}
+
+export function setLanguage(lang: Language) {
+    if (lang === currentLang) return;
+    currentLang = lang;
+    localStorage.setItem('orapa-lang', lang);
+    notifyListeners();
+}
+
+export function getLanguage(): Language {
+    return currentLang;
+}
+
+export function t(key: string, replacements?: { [key: string]: string | number }): string {
+    const keys = key.split('.');
+    let result: any = translations[currentLang];
+    
+    // Primary language lookup
+    for (const k of keys) {
+        result = result?.[k];
+        if (result === undefined) break;
+    }
+    
+    // Fallback to German if key not found in current language
+    if (result === undefined && currentLang !== 'de') {
+        let fallbackResult: any = translations.de;
+        for (const k of keys) {
+            fallbackResult = fallbackResult?.[k];
+            if (fallbackResult === undefined) return key; // Return key if not found in fallback either
+        }
+        result = fallbackResult;
+    } else if (result === undefined) {
+        return key;
+    }
+    
+    if (typeof result !== 'string') return key;
+
+    if (replacements) {
+        Object.entries(replacements).forEach(([rKey, rValue]) => {
+            const regex = new RegExp(`{{${rKey}}}`, 'g');
+            result = result.replace(regex, String(rValue));
+        });
+    }
+
+    return result;
+}
+
+// Set initial language on load
+document.documentElement.lang = currentLang;

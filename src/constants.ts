@@ -1,11 +1,12 @@
+
 import { CellState } from "./grid";
 
 export const DIFFICULTIES = {
-    TRAINING: 'Training',
-    NORMAL: 'Normal',
-    MITTEL: 'Mittel',
-    SCHWER: 'Schwer',
-    CUSTOM: 'Eigenes Level',
+    TRAINING: 'TRAINING',
+    NORMAL: 'NORMAL',
+    MEDIUM: 'MEDIUM',
+    HARD: 'HARD',
+    CUSTOM: 'CUSTOM',
 };
 
 export const COLORS = {
@@ -31,13 +32,13 @@ export const COLORS = {
     INVALID_GEM: '#e74c3c',
 };
 
-export const BASE_COLORS: { [key: string]: { name: string, color: string, baseGems: string[], special?: string } } = {
-    ROT: { name: 'Rot', color: COLORS.ROT, baseGems: ['ROT'] },
-    GELB: { name: 'Gelb', color: COLORS.GELB, baseGems: ['GELB'] },
-    BLAU: { name: 'Blau', color: COLORS.BLAU, baseGems: ['BLAU'] },
-    WEISS: { name: 'Weiss', color: COLORS.WEISS, baseGems: ['WEISS'] },
-    TRANSPARENT: { name: 'Transparent', color: COLORS.TRANSPARENT, baseGems: [] },
-    SCHWARZ: { name: 'Schwarz', color: COLORS.SCHWARZ_GEM, baseGems: [], special: 'absorbs' },
+export const BASE_COLORS: { [key: string]: { nameKey: string, color: string, baseGems: string[], special?: string } } = {
+    ROT: { nameKey: 'colors.red', color: COLORS.ROT, baseGems: ['ROT'] },
+    GELB: { nameKey: 'colors.yellow', color: COLORS.GELB, baseGems: ['GELB'] },
+    BLAU: { nameKey: 'colors.blue', color: COLORS.BLAU, baseGems: ['BLAU'] },
+    WEISS: { nameKey: 'colors.white', color: COLORS.WEISS, baseGems: ['WEISS'] },
+    TRANSPARENT: { nameKey: 'colors.transparent', color: COLORS.TRANSPARENT, baseGems: [] },
+    SCHWARZ: { nameKey: 'colors.black', color: COLORS.SCHWARZ_GEM, baseGems: [], special: 'absorbs' },
 };
 
 export const COLOR_MIXING: { [key: string]: string } = {
@@ -58,24 +59,24 @@ export const COLOR_MIXING: { [key: string]: string } = {
     'BLAU,GELB,ROT,WEISS': COLORS.GRAU,
 };
 
-export const COLOR_NAMES: { [key: string]: string } = {
-    'BLAU': 'Blau',
-    'GELB': 'Gelb',
-    'ROT': 'Rot',
-    'WEISS': 'Weiss',
-    'TRANSPARENT': 'Transparent',
-    'SCHWARZ': 'Schwarz',
-    'BLAU,ROT': 'Lila',
-    'BLAU,WEISS': 'Himmelblau',
-    'BLAU,GELB': 'Grün',
-    'ROT,WEISS': 'Hellrot',
-    'GELB,ROT': 'Orange',
-    'GELB,WEISS': 'Hellgelb',
-    'BLAU,ROT,WEISS': 'Hell-Lila',
-    'BLAU,GELB,ROT': 'Dunkelgrau',
-    'BLAU,GELB,WEISS': 'Hellgrün',
-    'GELB,ROT,WEISS': 'Hell-Orange',
-    'BLAU,GELB,ROT,WEISS': 'Grau',
+export const COLOR_NAME_KEYS: { [key: string]: string } = {
+    'BLAU': 'colors.blue',
+    'GELB': 'colors.yellow',
+    'ROT': 'colors.red',
+    'WEISS': 'colors.white',
+    'TRANSPARENT': 'colors.transparent',
+    'SCHWARZ': 'colors.black',
+    'BLAU,ROT': 'colors.purple',
+    'BLAU,WEISS': 'colors.skyBlue',
+    'BLAU,GELB': 'colors.green',
+    'ROT,WEISS': 'colors.lightRed',
+    'GELB,ROT': 'colors.orange',
+    'GELB,WEISS': 'colors.lightYellow',
+    'BLAU,ROT,WEISS': 'colors.lightPurple',
+    'BLAU,GELB,ROT': 'colors.darkGray',
+    'BLAU,GELB,WEISS': 'colors.lightGreen',
+    'GELB,ROT,WEISS': 'colors.lightOrange',
+    'BLAU,GELB,ROT,WEISS': 'colors.gray',
 };
 
 // Gem definitions strictly based on the user's provided text specifications.
@@ -125,62 +126,62 @@ export const GEMS: { [key: string]: any } = {
     },
 };
 
-export const CUSTOM_SHAPES: { [key: string]: { name: string, gridPattern: CellState[][] } } = {
-    SHAPE_RTRIANGLE: { name: 'Rechtwinkliges Dreieck', gridPattern: GEMS.GELB.gridPattern },
-    SHAPE_PARALLEL: { name: 'Parallelogramm', gridPattern: GEMS.ROT.gridPattern },
-    SHAPE_BIG_TRIANGLE: { name: 'Grosses Dreieck', gridPattern: GEMS.BLAU.gridPattern },
-    SHAPE_DIAMOND: { name: 'Raute', gridPattern: GEMS.WEISS_RAUTE.gridPattern },
-    SHAPE_SMALL_TRIANGLE: { name: 'Kleines Dreieck', gridPattern: GEMS.TRANSPARENT.gridPattern },
-    SHAPE_ABSORBER: { name: 'Absorber', gridPattern: GEMS.SCHWARZ.gridPattern },
-    SHAPE_L: { name: 'L-Form', gridPattern: [[CellState.TRIANGLE_BR, CellState.TRIANGLE_BL], [CellState.BLOCK, CellState.TRIANGLE_TL]] },
-    SHAPE_T: { name: 'T-Form', gridPattern: [[CellState.TRIANGLE_BR, CellState.BLOCK, CellState.TRIANGLE_BL], [CellState.TRIANGLE_TR, CellState.BLOCK, CellState.TRIANGLE_TL]] },
-    SHAPE_SQUARE: { name: 'Quadrat', gridPattern: [[CellState.TRIANGLE_BR, CellState.BLOCK], [CellState.BLOCK, CellState.TRIANGLE_TL]] },
-    SHAPE_BAR: { name: 'Stab', gridPattern: [[CellState.TRIANGLE_BL], [CellState.BLOCK], [CellState.TRIANGLE_TL]] },
-    SHAPE_SMALL: { name: 'Small', gridPattern: [[CellState.TRIANGLE_TR, CellState.TRIANGLE_BL]] },
-    SHAPE_STRANGE: { name: 'Strange', gridPattern: [[CellState.TRIANGLE_BL, CellState.TRIANGLE_BR], [CellState.TRIANGLE_TL, CellState.TRIANGLE_TR]] },
+export const CUSTOM_SHAPES: { [key: string]: { nameKey: string, gridPattern: CellState[][] } } = {
+    SHAPE_RTRIANGLE: { nameKey: 'shapes.rightTriangle', gridPattern: GEMS.GELB.gridPattern },
+    SHAPE_PARALLEL: { nameKey: 'shapes.parallelogram', gridPattern: GEMS.ROT.gridPattern },
+    SHAPE_BIG_TRIANGLE: { nameKey: 'shapes.bigTriangle', gridPattern: GEMS.BLAU.gridPattern },
+    SHAPE_DIAMOND: { nameKey: 'shapes.diamond', gridPattern: GEMS.WEISS_RAUTE.gridPattern },
+    SHAPE_SMALL_TRIANGLE: { nameKey: 'shapes.smallTriangle', gridPattern: GEMS.TRANSPARENT.gridPattern },
+    SHAPE_ABSORBER: { nameKey: 'shapes.absorber', gridPattern: GEMS.SCHWARZ.gridPattern },
+    SHAPE_L: { nameKey: 'shapes.lShape', gridPattern: [[CellState.TRIANGLE_BR, CellState.TRIANGLE_BL], [CellState.BLOCK, CellState.TRIANGLE_TL]] },
+    SHAPE_T: { nameKey: 'shapes.tShape', gridPattern: [[CellState.TRIANGLE_BR, CellState.BLOCK, CellState.TRIANGLE_BL], [CellState.TRIANGLE_TR, CellState.BLOCK, CellState.TRIANGLE_TL]] },
+    SHAPE_SQUARE: { nameKey: 'shapes.square', gridPattern: [[CellState.TRIANGLE_BR, CellState.BLOCK], [CellState.BLOCK, CellState.TRIANGLE_TL]] },
+    SHAPE_BAR: { nameKey: 'shapes.bar', gridPattern: [[CellState.TRIANGLE_BL], [CellState.BLOCK], [CellState.TRIANGLE_TL]] },
+    SHAPE_SMALL: { nameKey: 'shapes.small', gridPattern: [[CellState.TRIANGLE_TR, CellState.TRIANGLE_BL]] },
+    SHAPE_STRANGE: { nameKey: 'shapes.strange', gridPattern: [[CellState.TRIANGLE_BL, CellState.TRIANGLE_BR], [CellState.TRIANGLE_TL, CellState.TRIANGLE_TR]] },
 };
 
 
 export const GEM_SETS: { [key: string]: string[] } = {
     [DIFFICULTIES.TRAINING]: ['GELB', 'ROT', 'BLAU', 'WEISS_RAUTE', 'WEISS_DREIECK'],
     [DIFFICULTIES.NORMAL]: ['GELB', 'ROT', 'BLAU', 'WEISS_RAUTE', 'WEISS_DREIECK'],
-    [DIFFICULTIES.MITTEL]: ['GELB', 'ROT', 'BLAU', 'WEISS_RAUTE', 'WEISS_DREIECK', 'TRANSPARENT'],
-    [DIFFICULTIES.SCHWER]: ['GELB', 'ROT', 'BLAU', 'WEISS_RAUTE', 'WEISS_DREIECK', 'TRANSPARENT', 'SCHWARZ'],
+    [DIFFICULTIES.MEDIUM]: ['GELB', 'ROT', 'BLAU', 'WEISS_RAUTE', 'WEISS_DREIECK', 'TRANSPARENT'],
+    [DIFFICULTIES.HARD]: ['GELB', 'ROT', 'BLAU', 'WEISS_RAUTE', 'WEISS_DREIECK', 'TRANSPARENT', 'SCHWARZ'],
 };
 
-export const RATINGS: { [key: string]: { limit: number; text: string }[] } = {
+export const RATINGS: { [key: string]: { limit: number; textKey: string }[] } = {
     [DIFFICULTIES.TRAINING]: [
-        { limit: 8, text: 'Sehr gut' },
-        { limit: 10, text: 'Gut' },
-        { limit: 20, text: 'Normal' },
-        { limit: Infinity, text: 'Verbesserungsfähig' },
+        { limit: 8, textKey: 'ratings.training.1' },
+        { limit: 10, textKey: 'ratings.training.2' },
+        { limit: 20, textKey: 'ratings.training.3' },
+        { limit: Infinity, textKey: 'ratings.training.4' },
     ],
     [DIFFICULTIES.NORMAL]: [
-        { limit: 10, text: 'Ein wahrer Experte bei der Edelsteinsuche' },
-        { limit: 13, text: 'Ein Profi, dem kaum einer was vormacht' },
-        { limit: 18, text: 'Guter Edelsteinsucher' },
-        { limit: 23, text: 'Juhu, alle Edelsteine gefunden!' },
-        { limit: Infinity, text: 'Immerhin alle Edelsteine gefunden.' },
+        { limit: 10, textKey: 'ratings.normal.1' },
+        { limit: 13, textKey: 'ratings.normal.2' },
+        { limit: 18, textKey: 'ratings.normal.3' },
+        { limit: 23, textKey: 'ratings.normal.4' },
+        { limit: Infinity, textKey: 'ratings.normal.5' },
     ],
-    [DIFFICULTIES.MITTEL]: [
-        { limit: 12, text: 'Meisterlich! Kaum eine Abfrage zu viel.' },
-        { limit: 15, text: 'Sehr beeindruckend! Du kennst dich aus.' },
-        { limit: 20, text: 'Starke Leistung! Du hast den Dreh raus.' },
-        { limit: 25, text: 'Gut gemacht! Alle Schätze geborgen.' },
-        { limit: Infinity, text: 'Geduld und Spucke führen zum Ziel!' },
+    [DIFFICULTIES.MEDIUM]: [
+        { limit: 12, textKey: 'ratings.medium.1' },
+        { limit: 15, textKey: 'ratings.medium.2' },
+        { limit: 20, textKey: 'ratings.medium.3' },
+        { limit: 25, textKey: 'ratings.medium.4' },
+        { limit: Infinity, textKey: 'ratings.medium.5' },
     ],
-    [DIFFICULTIES.SCHWER]: [
-        { limit: 15, text: 'Legendär! Eine Leistung für die Geschichtsbücher.' },
-        { limit: 18, text: 'Herausragend! Selbst Experten staunen.' },
-        { limit: 21, text: 'Experten-Niveau! Du hast es wirklich drauf.' },
-        { limit: 25, text: 'Ein hartes Stück Arbeit, aber erfolgreich!' },
-        { limit: Infinity, text: 'Puh, das war knapp, aber gewonnen!' },
+    [DIFFICULTIES.HARD]: [
+        { limit: 15, textKey: 'ratings.hard.1' },
+        { limit: 18, textKey: 'ratings.hard.2' },
+        { limit: 21, textKey: 'ratings.hard.3' },
+        { limit: 25, textKey: 'ratings.hard.4' },
+        { limit: Infinity, textKey: 'ratings.hard.5' },
     ],
-    [DIFFICULTIES.CUSTOM]: [ // Same as 'Schwer'
-        { limit: 15, text: 'Legendär! Eine Leistung für die Geschichtsbücher.' },
-        { limit: 18, text: 'Herausragend! Selbst Experten staunen.' },
-        { limit: 21, text: 'Experten-Niveau! Du hast es wirklich drauf.' },
-        { limit: 25, text: 'Ein hartes Stück Arbeit, aber erfolgreich!' },
-        { limit: Infinity, text: 'Puh, das war knapp, aber gewonnen!' },
+    [DIFFICULTIES.CUSTOM]: [ // Same as 'Hard'
+        { limit: 15, textKey: 'ratings.hard.1' },
+        { limit: 18, textKey: 'ratings.hard.2' },
+        { limit: 21, textKey: 'ratings.hard.3' },
+        { limit: 25, textKey: 'ratings.hard.4' },
+        { limit: Infinity, textKey: 'ratings.hard.5' },
     ],
 };

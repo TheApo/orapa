@@ -1,8 +1,11 @@
+
 import { Game } from './game';
-import { GEMS, GEM_SETS, COLORS, COLOR_MIXING, DIFFICULTIES, COLOR_NAMES, RATINGS, BASE_COLORS, CUSTOM_SHAPES } from './constants';
+import { GEMS, GEM_SETS, COLORS, COLOR_MIXING, DIFFICULTIES, COLOR_NAME_KEYS, RATINGS, BASE_COLORS, CUSTOM_SHAPES } from './constants';
 import { gameState, Gem, LogEntry, GameStatus } from './state';
 import { CellState, GRID_WIDTH, GRID_HEIGHT } from './grid';
 import { EmitterButton } from './ui-objects';
+import { t, setLanguage, getLanguage, onLanguageChange, Language } from './i18n';
+
 
 type DragInfo = {
     name: string;
@@ -27,6 +30,7 @@ export class UI {
     screens: { [key: string]: HTMLElement } = {};
     
     // Main Menu Elements
+    langSwitcher!: HTMLElement;
     btnStartGame!: HTMLButtonElement;
     introRulesEl!: HTMLElement;
 
@@ -97,7 +101,9 @@ export class UI {
     constructor() {
         this.cacheDOMElements();
         this.bindGlobalEvents();
-        this._populateIntroRules();
+        
+        onLanguageChange(() => this.updateUIText());
+        this.updateUIText(); // Initial text population
     }
 
     bindGame(gameInstance: Game) {
@@ -111,6 +117,7 @@ export class UI {
         this.screens.game = document.getElementById('screen-game')!;
         this.screens.end = document.getElementById('screen-end')!;
         
+        this.langSwitcher = document.getElementById('lang-switcher')!;
         this.btnStartGame = document.getElementById('btn-start-game') as HTMLButtonElement;
         this.introRulesEl = document.getElementById('intro-rules')!;
         
@@ -156,6 +163,11 @@ export class UI {
     }
 
     private bindGlobalEvents() {
+        this.langSwitcher.addEventListener('click', () => {
+            const newLang: Language = getLanguage() === 'de' ? 'en' : 'de';
+            setLanguage(newLang);
+        });
+
         this.btnStartGame.addEventListener('click', () => this.game.showDifficultySelect());
         this.btnNewLevel.addEventListener('click', () => {
             if (gameState.difficulty) this.game.start(gameState.difficulty);
@@ -212,6 +224,36 @@ export class UI {
         });
     }
 
+    private updateUIText() {
+        // Update language switcher
+        this.langSwitcher.textContent = t('lang.flag');
+        this.langSwitcher.title = t('lang.switch');
+
+        // Update all elements with data-i18n-key
+        document.querySelectorAll<HTMLElement>('[data-i18n-key]').forEach(el => {
+            const key = el.dataset.i18nKey!;
+            const attr = el.dataset.i18nAttr || 'textContent';
+            (el as any)[attr] = t(key);
+        });
+
+        // Update dynamic content
+        if (gameState.status === GameStatus.MAIN_MENU) {
+            this._populateIntroRules();
+        }
+        if (gameState.status === GameStatus.DIFFICULTY_SELECT) {
+            this.populateDifficultyOptions();
+        }
+        if (gameState.status === GameStatus.CUSTOM_CREATOR) {
+            this._setupCustomCreator(); // This will re-populate titles and validate
+        }
+        if (gameState.status === GameStatus.PLAYING) {
+            this._populateRulesPanel();
+            this.updateToolbar(); // Re-creates tooltips
+            this.updateLogTabCounter(); // Updates "Logbuch" vs "Logbook"
+            this.redrawAll();
+        }
+    }
+
     private handleGlobalClick(e: MouseEvent) {
         if (!gameState.selectedLogEntryWaveId) return;
     
@@ -256,21 +298,15 @@ export class UI {
 
     private populateDifficultyOptions() {
         this.difficultyOptions.innerHTML = '';
-        const descs: {[key:string]: string} = {
-            [DIFFICULTIES.TRAINING]: "Ideal zum Lernen des Spiels, mit dem Verlauf der Lichtstrahlen.",
-            [DIFFICULTIES.NORMAL]: "Die Grundlagen. Lerne die farbigen und weissen Steine kennen.",
-            [DIFFICULTIES.MITTEL]: "Eine neue Herausforderung. Ein transparenter Prisma-Stein lenkt das Licht ab, ohne es zu färben.",
-            [DIFFICULTIES.SCHWER]: "Expertenmodus. Neben dem transparenten kommt ein schwarzer, Licht absorbierender Stein in Spiel."
-        };
-        [DIFFICULTIES.TRAINING, DIFFICULTIES.NORMAL, DIFFICULTIES.MITTEL, DIFFICULTIES.SCHWER].forEach(diff => {
+        [DIFFICULTIES.TRAINING, DIFFICULTIES.NORMAL, DIFFICULTIES.MEDIUM, DIFFICULTIES.HARD].forEach(diffKey => {
             const btn = document.createElement('button');
-            btn.innerHTML = `${diff}<div class="difficulty-desc">${descs[diff]}</div>`;
-            btn.onclick = () => this.game.start(diff);
+            btn.innerHTML = `${t('difficulty.' + diffKey)}<div class="difficulty-desc">${t('difficulty.' + diffKey + '_desc')}</div>`;
+            btn.onclick = () => this.game.start(diffKey);
             this.difficultyOptions.appendChild(btn);
         });
         
         const customBtn = document.createElement('button');
-        customBtn.innerHTML = `Eigenes Level<div class="difficulty-desc">Wähle deine eigenen Steine und erstelle eine neue Herausforderung.</div>`;
+        customBtn.innerHTML = `${t('difficulty.CUSTOM')}<div class="difficulty-desc">${t('difficulty.CUSTOM_desc')}</div>`;
         customBtn.onclick = () => this.game.showCustomCreator();
         this.difficultyOptions.appendChild(customBtn);
     }
@@ -293,7 +329,7 @@ export class UI {
                 div.style.border = `2px solid ${COLORS.TRANSPARENT}`;
                 div.style.backgroundColor = 'rgba(164, 212, 228, 0.3)';
             }
-            div.title = value.name;
+            div.title = t(value.nameKey);
             div.onclick = () => {
                 this.customCreatorState.selectedColorKey = key;
                 this.customColorSelector.querySelectorAll('.color-choice').forEach(el => el.classList.remove('selected'));
@@ -307,7 +343,7 @@ export class UI {
             const div = document.createElement('div');
             div.className = 'shape-choice';
             div.dataset.shapeKey = key;
-            div.title = value.name;
+            div.title = t(value.nameKey);
             const canvas = document.createElement('canvas');
             div.appendChild(canvas);
             
@@ -325,7 +361,7 @@ export class UI {
     private _handleAddCustomGem() {
         const { selectedColorKey, selectedShapeKey } = this.customCreatorState;
         if (!selectedColorKey || !selectedShapeKey) {
-            alert("Bitte wähle zuerst eine Farbe und eine Form aus.");
+            alert(t('customCreator.alert.selectColorAndShape'));
             return;
         }
     
@@ -368,7 +404,7 @@ export class UI {
             const deleteBtn = document.createElement('button');
             deleteBtn.className = 'delete-gem-btn';
             deleteBtn.innerHTML = '&times;';
-            deleteBtn.title = 'Entfernen';
+            deleteBtn.title = t('buttons.remove');
             deleteBtn.onclick = () => {
                 this.customCreatorState.gems.splice(index, 1);
                 this._updateCustomGemList();
@@ -391,28 +427,28 @@ export class UI {
         });
     
         const validationRules = [
-            { condition: counts.ROT === 1, error: "Benötigt: <strong>genau 1 roten</strong> Stein" },
-            { condition: counts.GELB === 1, error: "Benötigt: <strong>genau 1 gelben</strong> Stein" },
-            { condition: counts.BLAU === 1, error: "Benötigt: <strong>genau 1 blauen</strong> Stein" },
-            { condition: counts.WEISS >= 1, error: "Benötigt: <strong>mindestens 1 weissen</strong> Stein" },
-            { condition: counts.WEISS <= 2, error: "Erlaubt: <strong>maximal 2 weisse</strong> Steine" },
-            { condition: counts.TRANSPARENT <= 2, error: "Erlaubt: <strong>maximal 2 transparente</strong> Steine" },
-            { condition: counts.SCHWARZ <= 1, error: "Erlaubt: <strong>maximal 1 schwarzen</strong> Stein" },
+            { condition: counts.ROT === 1, errorKey: "validation.exactOneRed" },
+            { condition: counts.GELB === 1, errorKey: "validation.exactOneYellow" },
+            { condition: counts.BLAU === 1, errorKey: "validation.exactOneBlue" },
+            { condition: counts.WEISS >= 1, errorKey: "validation.atLeastOneWhite" },
+            { condition: counts.WEISS <= 2, errorKey: "validation.maxTwoWhite" },
+            { condition: counts.TRANSPARENT <= 2, errorKey: "validation.maxTwoTransparent" },
+            { condition: counts.SCHWARZ <= 1, errorKey: "validation.maxOneBlack" },
         ];
     
-        let firstError = null;
+        let firstErrorKey = null;
         for (const rule of validationRules) {
             if (!rule.condition) {
-                firstError = rule.error;
+                firstErrorKey = rule.errorKey;
                 break; // Stop at the first error
             }
         }
     
-        if (firstError) {
-            this.customValidationFeedback.innerHTML = `<div class="invalid">❌ ${firstError}</div>`;
+        if (firstErrorKey) {
+            this.customValidationFeedback.innerHTML = `<div class="invalid">❌ ${t(firstErrorKey)}</div>`;
             this.btnStartCustomLevel.disabled = true;
         } else {
-            this.customValidationFeedback.innerHTML = `<div class="valid">✅ Level ist valide</div>`;
+            this.customValidationFeedback.innerHTML = `<div class="valid">✅ ${t('validation.levelIsValid')}</div>`;
             this.btnStartCustomLevel.disabled = false;
         }
     }
@@ -488,12 +524,13 @@ export class UI {
         const gemDef = this.getGemDefinition(gemName);
         if (!gemDef) return '';
     
-        if (gemDef.special === 'absorbs') return "Absorbiert Licht.";
-        if (gemDef.baseGems.length === 0) return "Reflektiert nur, färbt nicht.";
+        if (gemDef.special === 'absorbs') return t('tooltips.absorbs');
+        if (gemDef.baseGems.length === 0) return t('tooltips.reflectsOnly');
        
         const colorKey = gemDef.baseGems[0];
-        const colorDisplayName = COLOR_NAMES[colorKey]?.toLowerCase() || 'unbekannt';
-        return `Fügt Farbe '${colorDisplayName}' hinzu.`;
+        const colorNameKey = COLOR_NAME_KEYS[colorKey];
+        const colorDisplayName = t(colorNameKey).toLowerCase();
+        return t('tooltips.addsColor', { color: colorDisplayName });
     }
 
     updateToolbar() {
@@ -899,10 +936,11 @@ export class UI {
 
     private updateLogTabCounter() {
         const count = gameState.log.length;
+        const logbook = t('gameScreen.tabs.logbook');
         if (count > 0) {
-            this.logTabBtn.textContent = `Logbuch (${count})`;
+            this.logTabBtn.textContent = `${logbook} (${count})`;
         } else {
-            this.logTabBtn.textContent = 'Logbuch';
+            this.logTabBtn.textContent = logbook;
         }
     }
     
@@ -938,17 +976,17 @@ export class UI {
         let playerSolutionToShow: Gem[] = [];
     
         if (isWin) {
-            this.endTitle.textContent = 'Gewonnen!';
+            this.endTitle.textContent = t('endScreen.winTitle');
             this.endTitle.classList.add('win');
-            this.endStats.textContent = `Du hast die Mine in ${waveCount} Abfragen gelöst.`;
+            this.endStats.textContent = t('endScreen.stats', { count: waveCount });
     
             const areSolutionsIdentical = this._areGemSetsIdentical(secretGems, playerGems);
     
             if (areSolutionsIdentical) {
-                this.endSolutionLabel.textContent = 'Korrekte Lösung:';
+                this.endSolutionLabel.textContent = t('endScreen.solutionLabel.correct');
                 playerSolutionToShow = []; // Only show the secret solution, as it's identical
             } else {
-                this.endSolutionLabel.textContent = 'Alternative Lösung gefunden! Deine Lösung (transparent):';
+                this.endSolutionLabel.textContent = t('endScreen.solutionLabel.alternative');
                 playerSolutionToShow = playerGems; // Show player's solution on top
             }
             
@@ -959,7 +997,7 @@ export class UI {
                 let ratingText = '';
                 for (const tier of ratingTiers) {
                     if (waveCount <= tier.limit) {
-                        ratingText = tier.text;
+                        ratingText = t(tier.textKey);
                         break;
                     }
                 }
@@ -970,13 +1008,15 @@ export class UI {
     
                     // Generate and display legend
                     this.endRatingLegend.style.display = 'block';
-                    let legendHtml = `<h5>Bewertung für ${difficulty}</h5><ul>`;
+                    let legendHtml = `<h5>${t('endScreen.ratingLegendTitle', { difficulty: t('difficulty.'+difficulty) })}</h5><ul>`;
                     let lastLimit = 0;
                     ratingTiers.forEach(tier => {
-                        const rangeText = lastLimit === 0 ? `bis ${tier.limit} Abfragen`
-                                        : tier.limit === Infinity ? `mehr als ${lastLimit} Abfragen`
-                                        : `${lastLimit + 1} - ${tier.limit} Abfragen`;
-                        legendHtml += `<li><strong>${tier.text}:</strong> ${rangeText}</li>`;
+                        const rangeTextKey = lastLimit === 0 ? 'endScreen.ratingLegend.upTo'
+                                        : tier.limit === Infinity ? 'endScreen.ratingLegend.moreThan'
+                                        : 'endScreen.ratingLegend.range';
+                        const rangeText = t(rangeTextKey, { start: lastLimit + 1, end: tier.limit });
+                        
+                        legendHtml += `<li><strong>${t(tier.textKey)}:</strong> ${rangeText}</li>`;
                         lastLimit = tier.limit;
                     });
                     legendHtml += '</ul>';
@@ -985,11 +1025,11 @@ export class UI {
             }
     
         } else {
-            this.endTitle.textContent = 'Verloren!';
+            this.endTitle.textContent = t('endScreen.lossTitle');
             this.endTitle.classList.add('loss');
-            this.endStats.textContent = `Du hast ${waveCount} Abfragen gebraucht.`;
-            this.endRetryMessage.textContent = 'Bitte versuche es erneut.';
-            this.endSolutionLabel.textContent = 'Deine Eingabe (über der korrekten Lösung):';
+            this.endStats.textContent = t('endScreen.stats', { count: waveCount });
+            this.endRetryMessage.textContent = t('endScreen.retry');
+            this.endSolutionLabel.textContent = t('endScreen.solutionLabel.yourInput');
             playerSolutionToShow = playerGems;
         }
     
@@ -1396,10 +1436,11 @@ export class UI {
     }
 
     private _getPathColorName(result: { colors: string[], absorbed?: boolean }): string {
-        if (result.absorbed) return 'Absorbiert';
-        if (result.colors.length === 0) return 'Keine Farbe';
+        if (result.absorbed) return t('log.absorbed');
+        if (result.colors.length === 0) return t('log.noColor');
         const key = [...result.colors].sort().join(',');
-        return COLOR_NAMES[key] || 'Unbekannte Mischung';
+        const nameKey = COLOR_NAME_KEYS[key];
+        return nameKey ? t(nameKey) : t('log.unknownMix');
     }
     
     private _createColorMixEntry(key: string): HTMLElement {
@@ -1417,7 +1458,7 @@ export class UI {
             }
         });
         
-        const resultName = COLOR_NAMES[key as keyof typeof COLOR_NAMES] || 'Mischung';
+        const resultName = t(COLOR_NAME_KEYS[key as keyof typeof COLOR_NAME_KEYS] || 'log.unknownMix');
     
         html += `<span>=</span> <div class="color-mix-box" style="background-color: ${resultColor}"></div> <span>${resultName}</span>`;
         entryDiv.innerHTML = html;
@@ -1426,6 +1467,8 @@ export class UI {
 
     private _populateColorMixColumns(container: HTMLElement) {
         if (!container) return;
+        
+        container.innerHTML = '';
     
         const col1 = document.createElement('div');
         col1.className = 'color-mix-column';
@@ -1444,39 +1487,45 @@ export class UI {
     
     private _populateIntroRules() {
         this.introRulesEl.innerHTML = `
-            <h3>Spielanleitung</h3>
-            <p><strong>Ziel:</strong> Finde die Position und Ausrichtung der versteckten Edelsteine.</p>
+            <h3 data-i18n-key="rules.title"></h3>
+            <p><strong data-i18n-key="rules.objectiveTitle"></strong> <span data-i18n-key="rules.objective"></span></p>
             <ul>
-                <li>Sende Lichtwellen von den Rändern in das Spielfeld.</li>
-                <li>Die austretende Farbe und Position verraten, welche Steine getroffen wurden.</li>
-                <li>Ziehe Edelsteine aus der Werkzeugleiste auf das Feld. Du kannst sie verschieben und drehen.</li>
-                <li>Ein Klick auf einen platzierten Stein dreht ihn um 90°.</li>
-                <li>Steine dürfen sich nicht überlappen oder Kante an Kante liegen.</li>
-                <li>Drücke <strong>'n'</strong> für ein neues Level oder <strong>'esc'</strong> um zum Menü zurückzukehren.</li>
+                <li data-i18n-key="rules.item1"></li>
+                <li data-i18n-key="rules.item2"></li>
+                <li data-i18n-key="rules.item3"></li>
+                <li data-i18n-key="rules.item4"></li>
+                <li data-i18n-key="rules.item5"></li>
+                <li data-i18n-key="rules.item6"></li>
             </ul>
-            <h4>Farbmischung</h4>
-            <p>Wenn ein Lichtstrahl mehrere farbige Steine durchquert, mischen sich ihre Farben:</p>
+            <h4 data-i18n-key="rules.colorMixingTitle"></h4>
+            <p data-i18n-key="rules.colorMixingDesc"></p>
             <div class="color-mix-container"></div>
         `;
-
+        // Manually trigger translation for the newly created elements
+        this.introRulesEl.querySelectorAll<HTMLElement>('[data-i18n-key]').forEach(el => {
+             el.textContent = t(el.dataset.i18nKey!);
+        });
         const container = this.introRulesEl.querySelector('.color-mix-container') as HTMLElement;
         this._populateColorMixColumns(container);
     }
 
     private _populateRulesPanel() {
         this.rulesPanel.innerHTML = `
-            <h4>Grundregeln</h4>
+            <h4 data-i18n-key="rules.basicRules"></h4>
             <ul>
-                <li><strong>Ziel:</strong> Finde die Position und Ausrichtung der versteckten Edelsteine.</li>
-                <li>Sende Lichtwellen, um zu sehen, wo sie austreten und welche Farbe sie haben.</li>
-                <li>Ziehe die Edelsteine auf das Feld, um die Lösung nachzubauen.</li>
-                <li>Klicke auf einen platzierten Stein, um ihn zu <strong>drehen</strong>.</li>
-                <li>Steine dürfen sich nicht überlappen oder Kante an Kante liegen.</li>
+                <li><strong data-i18n-key="rules.objectiveTitle"></strong> <span data-i18n-key="rules.objective"></span></li>
+                <li data-i18n-key="rules.panel.item1"></li>
+                <li data-i18n-key="rules.panel.item2"></li>
+                <li data-i18n-key="rules.panel.item3"></li>
+                <li data-i18n-key="rules.panel.item4"></li>
             </ul>
-            <h4>Farbmischung</h4>
-            <p>Wenn ein Lichtstrahl mehrere farbige Steine durchquert, mischen sich ihre Farben:</p>
+            <h4 data-i18n-key="rules.colorMixingTitle"></h4>
+            <p data-i18n-key="rules.colorMixingDesc"></p>
             <div class="color-mix-container"></div>
         `;
+        this.rulesPanel.querySelectorAll<HTMLElement>('[data-i18n-key]').forEach(el => {
+             el.textContent = t(el.dataset.i18nKey!);
+        });
     
         const container = this.rulesPanel.querySelector('.color-mix-container') as HTMLElement;
         this._populateColorMixColumns(container);
