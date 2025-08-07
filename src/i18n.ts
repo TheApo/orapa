@@ -5,7 +5,7 @@ const translations = {
     de: {
         lang: {
             name: "Deutsch",
-            flag: "🇩🇪",
+            flag: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 5 3"><path d="M0 0h5v3H0z"/><path d="M0 1h5v2H0z" fill="#D00"/><path d="M0 2h5v1H0z" fill="#FFCE00"/></svg>`,
             switch: "Sprache wechseln",
         },
         mainMenu: {
@@ -160,7 +160,7 @@ const translations = {
     en: {
         lang: {
             name: "English",
-            flag: "🇬🇧",
+            flag: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 30"><clipPath id="a"><path d="M0 0v30h60V0z"/></clipPath><clipPath id="b"><path d="M30 15h30v15H30zM0 0v15h30V0z"/></clipPath><g clip-path="url(#a)"><path d="M0 0v30h60V0z" fill="#012169"/><path d="M0 0l60 30m-60 0L60 0" stroke="#fff" stroke-width="6"/><path d="M0 0l60 30m-60 0L60 0" clip-path="url(#b)" stroke="#C8102E" stroke-width="4"/><path d="M0 15h60M30 0v30" stroke="#fff" stroke-width="10"/><path d="M0 15h60M30 0v30" stroke="#C8102E" stroke-width="6"/></g></svg>`,
             switch: "Change language",
         },
         mainMenu: {

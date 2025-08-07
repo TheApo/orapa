@@ -226,7 +226,7 @@ export class UI {
 
     private updateUIText() {
         // Update language switcher
-        this.langSwitcher.textContent = t('lang.flag');
+        this.langSwitcher.innerHTML = t('lang.flag');
         this.langSwitcher.title = t('lang.switch');
 
         // Update all elements with data-i18n-key

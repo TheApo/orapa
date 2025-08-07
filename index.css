@@ -91,7 +91,6 @@ html, body {
     position: absolute;
     top: 15px;
     right: 15px;
-    font-size: 2rem;
     cursor: pointer;
     background-color: rgba(0,0,0,0.2);
     border-radius: 8px;
@@ -105,6 +104,11 @@ html, body {
 }
 #lang-switcher:hover {
     background-color: rgba(0,0,0,0.4);
+}
+#lang-switcher svg {
+    width: 32px;
+    height: auto;
+    display: block;
 }
 
 .title {
