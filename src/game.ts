@@ -20,6 +20,14 @@ const cellEdges: { [key in CellState]: boolean[] } = {
     [CellState.TRIANGLE_BL]: [false, false, true,  true],  // Edges are bottom and left
 };
 
+type GemPlacementInfo = {
+    id?: string;
+    name: string;
+    x: number;
+    y: number;
+    gridPattern: CellState[][];
+};
+
 export class Game {
     ui: UI;
     secretGrid: CellState[][] = [];
@@ -249,7 +257,7 @@ export class Game {
         }
     }
     
-    public canPlaceGem(gemToTest: { id?: string; x: number; y: number; gridPattern: CellState[][] }): boolean {
+    public canPlaceGem(gemToTest: { id?: string; name: string; x: number; y: number; gridPattern: CellState[][] }): boolean {
         // This is used for the drag preview, so we check against all player gems
         return this._isPlacementValid(gemToTest, gameState.playerGems);
     }
@@ -283,79 +291,70 @@ export class Game {
         });
     }
 
-    private _doGemsCollide(gemA: { x: number, y: number, gridPattern: CellState[][] }, gemB: { x: number, y: number, gridPattern: CellState[][] }): boolean {
-        const widthA = gemA.gridPattern[0].length;
+    private _doGemsCollide(gemA: GemPlacementInfo, gemB: GemPlacementInfo): boolean {
         const heightA = gemA.gridPattern.length;
-        const widthB = gemB.gridPattern[0].length;
+        const widthA = gemA.gridPattern[0].length;
         const heightB = gemB.gridPattern.length;
+        const widthB = gemB.gridPattern[0].length;
+        const isSchwarzInvolved = gemA.name === 'SCHWARZ' || gemB.name === 'SCHWARZ';
     
-        // Broad phase: Check if bounding boxes are so far apart they can't possibly interact.
-        // If they are separated by at least one full cell, they can't collide or have an edge.
-        if ( (gemA.x + widthA < gemB.x) || // A is completely to the left of B
-             (gemB.x + widthB < gemA.x) || // B is completely to the left of A
-             (gemA.y + heightA < gemB.y) || // A is completely above B
-             (gemB.y + heightB < gemA.y) )  // B is completely above A
-        {
-            return false;
-        }
-    
-        // Narrow phase: Check cell by cell for overlap or illegal edge adjacency.
+        // Check every cell of gem A against every cell of gem B
         for (let rA = 0; rA < heightA; rA++) {
             for (let cA = 0; cA < widthA; cA++) {
                 const cellAState = gemA.gridPattern[rA][cA];
-                if (cellAState === CellState.EMPTY) {
-                    continue;
-                }
+                if (cellAState === CellState.EMPTY) continue;
+    
                 const worldXA = gemA.x + cA;
                 const worldYA = gemA.y + rA;
     
                 for (let rB = 0; rB < heightB; rB++) {
                     for (let cB = 0; cB < widthB; cB++) {
                         const cellBState = gemB.gridPattern[rB][cB];
-                        if (cellBState === CellState.EMPTY) {
-                            continue;
-                        }
+                        if (cellBState === CellState.EMPTY) continue;
+                        
                         const worldXB = gemB.x + cB;
                         const worldYB = gemB.y + rB;
     
-                        // 1. Check for overlap (same cell is always a collision)
-                        if (worldXA === worldXB && worldYA === worldYB) {
-                            return true;
-                        }
+                        const dx = Math.abs(worldXA - worldXB);
+                        const dy = Math.abs(worldYA - worldYB);
+                        
+                        if (isSchwarzInvolved) {
+                            // For Schwarz, any adjacency (including corners) is a collision.
+                            if (dx <= 1 && dy <= 1) {
+                                return true;
+                            }
+                        } else {
+                            // For other gems, check for overlap and edge adjacency.
+                            // 1. Overlap
+                            if (dx === 0 && dy === 0) {
+                                return true;
+                            }
+                            // 2. Edge adjacency
+                            if (dx + dy === 1) {
+                                const edgesA = cellEdges[cellAState];
+                                const edgesB = cellEdges[cellBState];
     
-                        // 2. Check for illegal edge-to-edge adjacency.
-                        // This is only possible if cells are exactly 1 unit apart on one axis.
-                        if (Math.abs(worldXA - worldXB) + Math.abs(worldYA - worldYB) === 1) {
-                            const edgesA = cellEdges[cellAState];
-                            const edgesB = cellEdges[cellBState];
-    
-                            // A is left of B
-                            if (worldXA < worldXB) { 
-                                if (edgesA[1] && edgesB[3]) return true; // A's right touches B's left
-                            }
-                            // A is right of B
-                            else if (worldXA > worldXB) {
-                                if (edgesA[3] && edgesB[1]) return true; // A's left touches B's right
-                            }
-                            // A is above B
-                            else if (worldYA < worldYB) {
-                                if (edgesA[2] && edgesB[0]) return true; // A's bottom touches B's top
-                            }
-                            // A is below B
-                            else if (worldYA > worldYB) {
-                                if (edgesA[0] && edgesB[2]) return true; // A's top touches B's bottom
+                                if (worldXA < worldXB) { // A left of B
+                                    if (edgesA[1] && edgesB[3]) return true;
+                                } else if (worldXA > worldXB) { // A right of B
+                                    if (edgesA[3] && edgesB[1]) return true;
+                                } else if (worldYA < worldYB) { // A above B
+                                    if (edgesA[2] && edgesB[0]) return true;
+                                } else { // A below B (worldYA > worldYB)
+                                    if (edgesA[0] && edgesB[2]) return true;
+                                }
                             }
                         }
                     }
                 }
             }
         }
-        // No overlap or illegal adjacency found.
         return false;
     }
+    
 
     private _isPlacementValid(
-        gemToTest: { id?: string, x: number, y: number, gridPattern: CellState[][] },
+        gemToTest: GemPlacementInfo,
         allPlacedGems: Gem[]
     ): boolean {
         const { gridPattern, x, y, id } = gemToTest;

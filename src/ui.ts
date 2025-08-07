@@ -414,7 +414,7 @@ export class UI {
         const gridX = Math.round(gridXFloat);
         const gridY = Math.round(gridYFloat);
 
-        const gemToTest = { id, x: gridX, y: gridY, gridPattern };
+        const gemToTest = { id, name, x: gridX, y: gridY, gridPattern };
         this.lastValidDropTarget.isValid = this.game.canPlaceGem(gemToTest);
         this.lastValidDropTarget.x = gridX;
         this.lastValidDropTarget.y = gridY;
@@ -673,14 +673,25 @@ export class UI {
         }
     }
     
-    private _getGemSetIdentifier(gems: Gem[]): string {
-        // Create a canonical string representation of a gem set.
-        // Sorting the resulting strings ensures that the order of gems in the array
-        // doesn't affect the final identifier.
-        return gems
-            .map(g => `${g.name},${g.x},${g.y},${g.rotation}`)
-            .sort()
-            .join(';');
+    private _areGemSetsIdentical(gemsA: Gem[], gemsB: Gem[]): boolean {
+        if (gemsA.length !== gemsB.length) return false;
+    
+        // A canonical key that is independent of the ambiguous `rotation` property, 
+        // but dependent on the actual grid pattern which represents the true state.
+        const gemToKey = (g: Gem) => `${g.name},${g.x},${g.y},${JSON.stringify(g.gridPattern)}`;
+    
+        const keysA = new Set(gemsA.map(gemToKey));
+        const keysB = new Set(gemsB.map(gemToKey));
+    
+        if (keysA.size !== keysB.size) return false;
+    
+        for (const key of keysA) {
+            if (!keysB.has(key)) {
+                return false;
+            }
+        }
+    
+        return true;
     }
     
     showEndScreen(isWin: boolean, waveCount: number, secretGems: Gem[], playerGems: Gem[]) {
@@ -694,10 +705,9 @@ export class UI {
             this.endTitle.classList.add('win');
             this.endStats.textContent = `Du hast die Mine in ${waveCount} Abfragen gelöst!`;
     
-            const secretIdentifier = this._getGemSetIdentifier(secretGems);
-            const playerIdentifier = this._getGemSetIdentifier(playerGems);
+            const areSolutionsIdentical = this._areGemSetsIdentical(secretGems, playerGems);
     
-            if (secretIdentifier === playerIdentifier) {
+            if (areSolutionsIdentical) {
                 this.endSolutionLabel.textContent = 'Korrekte Lösung:';
                 playerSolutionToShow = []; // Only show the secret solution, as it's identical
             } else {
