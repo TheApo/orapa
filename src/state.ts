@@ -14,6 +14,8 @@ export interface Gem {
     x: number;
     y: number;
     rotation: number;
+    isFlipped: boolean;
+    isFlippable: boolean;
     gridPattern: CellState[][];
     isValid?: boolean;
     isCorrectlyPlaced?: boolean;

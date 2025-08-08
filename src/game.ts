@@ -3,7 +3,7 @@ import { gameState, GameStatus, Gem } from './state';
 import { UI } from './ui';
 import { tracePath } from './path-tracer';
 import { CellState, GRID_WIDTH, GRID_HEIGHT } from './grid';
-import { rotateGridPattern } from './physics';
+import { rotateGridPattern, isShapeFlippable, flipGridPatternHorizontally } from './physics';
 
 // Defines which grid-aligned edges each CellState has.
 // This is used to determine illegal edge-to-edge adjacency.
@@ -192,7 +192,9 @@ export class Game {
             id: `player_${Date.now()}`, 
             name: gemName, 
             x, y, 
-            rotation: 0, 
+            rotation: 0,
+            isFlipped: false,
+            isFlippable: isShapeFlippable(gemDef.gridPattern),
             gridPattern: gemDef.gridPattern,
             isValid: false
         };
@@ -264,6 +266,21 @@ export class Game {
             gem.y = Math.max(0, Math.min(gem.y, GRID_HEIGHT - newHeight));
 
             // 5. Revalidate and redraw
+            this._revalidateAllPlayerGems();
+            this._updateActivePlayerPathPreview();
+            this.updateSolutionButtonState();
+            this.ui.redrawAll();
+        }
+    }
+    
+    flipPlayerGem(id: string) {
+        const gem = gameState.playerGems.find(g => g.id === id);
+        if (gem && gem.isFlippable) {
+            gem.isFlipped = !gem.isFlipped;
+            gem.gridPattern = flipGridPatternHorizontally(gem.gridPattern);
+
+            // Bounding box does not change on flip, so no need to re-center.
+            // But validation is crucial.
             this._revalidateAllPlayerGems();
             this._updateActivePlayerPathPreview();
             this.updateSolutionButtonState();
@@ -442,7 +459,15 @@ export class Game {
                 
                 while(!placed && singleGemAttempts < 200) {
                     singleGemAttempts++;
+
+                    const isFlippable = isShapeFlippable(gemDef.gridPattern);
+                    const shouldFlip = isFlippable && Math.random() < 0.5;
+
                     let pattern = gemDef.gridPattern;
+                    if (shouldFlip) {
+                        pattern = flipGridPatternHorizontally(pattern);
+                    }
+
                     const rotCount = Math.floor(Math.random() * 4);
                     for (let i = 0; i < rotCount; i++) pattern = rotateGridPattern(pattern);
 
@@ -456,7 +481,10 @@ export class Game {
 
                     const newGem: Gem = {
                         id: `secret_${gemName}_${placedGems.length}`,
-                        name: gemName, x, y, rotation: rotCount * 90, gridPattern: pattern
+                        name: gemName, x, y, rotation: rotCount * 90, 
+                        isFlipped: shouldFlip,
+                        isFlippable: isFlippable,
+                        gridPattern: pattern
                     };
 
                     if (this._isPlacementValid(newGem, placedGems)) {

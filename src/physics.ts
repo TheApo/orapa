@@ -54,6 +54,17 @@ const rotationMap: { [key in CellState]: CellState } = {
     [CellState.TRIANGLE_BL]: CellState.TRIANGLE_TL,
 };
 
+const flipMap: { [key in CellState]: CellState } = {
+    [CellState.EMPTY]: CellState.EMPTY,
+    [CellState.BLOCK]: CellState.BLOCK,
+    [CellState.ABSORB]: CellState.ABSORB,
+    [CellState.TRIANGLE_TL]: CellState.TRIANGLE_TR,
+    [CellState.TRIANGLE_TR]: CellState.TRIANGLE_TL,
+    [CellState.TRIANGLE_BR]: CellState.TRIANGLE_BL,
+    [CellState.TRIANGLE_BL]: CellState.TRIANGLE_BR,
+};
+
+
 /**
  * Calculates the reflection of a light ray.
  * @param cell The state of the cell the ray is in.
@@ -86,4 +97,37 @@ export function rotateGridPattern(pattern: CellState[][]): CellState[][] {
         }
     }
     return newPattern;
+}
+
+/**
+ * Flips a gem's grid pattern horizontally.
+ * @param pattern The 2D array of CellStates representing the gem.
+ * @returns A new 2D array with the flipped pattern.
+ */
+export function flipGridPatternHorizontally(pattern: CellState[][]): CellState[][] {
+    return pattern.map(row => 
+        row.map(cellState => flipMap[cellState]).reverse()
+    );
+}
+
+/**
+ * Checks if a shape's pattern is meaningfully flippable.
+ * A shape is flippable if its flipped version cannot be achieved by rotation.
+ * @param pattern The 2D array of CellStates representing the gem shape.
+ * @returns True if the shape is flippable, false otherwise.
+ */
+export function isShapeFlippable(pattern: CellState[][]): boolean {
+    const flipped = flipGridPatternHorizontally(pattern);
+    const flippedStr = JSON.stringify(flipped);
+
+    let current = pattern;
+    // Check against all 4 rotations
+    for (let i = 0; i < 4; i++) {
+        if (JSON.stringify(current) === flippedStr) {
+            return false; // Flipped version is identical to one of the rotations.
+        }
+        current = rotateGridPattern(current);
+    }
+    
+    return true; // Flipped version is unique and not achievable by rotation.
 }

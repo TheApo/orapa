@@ -80,12 +80,16 @@ export class UI {
     private focusedEmitterId: string | null = null;
     
     // Drag & Drop State
-    private dragStartInfo: { item: DragInfo, startX: number, startY: number } | null = null;
+    private dragStartInfo: { item: DragInfo | null, startX: number, startY: number } | null = null;
     private isDragging = false;
     private draggedItemInfo: DragInfo | null = null;
     private dragPos = { x: 0, y: 0 };
     private lastValidDropTarget = { x: -1, y: -1, isValid: false };
     
+    // Long Press State
+    private longPressTimeout: number | null = null;
+    private longPressTriggered = false;
+
     // Custom Creator State
     private customCreatorState: CustomCreatorState = {
         selectedColorKey: null,
@@ -1264,24 +1268,25 @@ export class UI {
         const toolbarGemEl = target.closest('.toolbar-gem:not(.placed)');
         const isOverCanvas = target.closest('#gem-canvas');
     
-        // Key fix for mobile: Prevent synthetic mouse events that cause double actions (e.g., tap-to-select, then ghost-click-to-deselect).
-        // We do this for any touch that starts on an interactive area of our game.
         if (e instanceof TouchEvent && (isOverCanvas || toolbarGemEl)) {
             e.preventDefault();
         }
         
         let potentialDragItem: DragInfo | null = null;
-        let offsetX = 0;
-        let offsetY = 0;
     
         if (toolbarGemEl) {
             const rect = toolbarGemEl.getBoundingClientRect();
-            offsetX = clientX - rect.left;
-            offsetY = clientY - rect.top;
             const name = (toolbarGemEl as HTMLElement).dataset.gemName!;
             const gemDef = this.getGemDefinition(name);
-            if(gemDef) {
-                potentialDragItem = { name, from: 'toolbar', gridPattern: gemDef.gridPattern, element: (toolbarGemEl as HTMLElement), offsetX, offsetY };
+            if (gemDef) {
+                potentialDragItem = {
+                    name,
+                    from: 'toolbar',
+                    gridPattern: gemDef.gridPattern,
+                    element: (toolbarGemEl as HTMLElement),
+                    offsetX: clientX - rect.left,
+                    offsetY: clientY - rect.top,
+                };
             }
         } else if (isOverCanvas) {
             const canvasRect = this.gemCanvas.getBoundingClientRect();
@@ -1290,11 +1295,28 @@ export class UI {
             const gem = this.getGemAtCanvasPos(x, y);
             if (gem) {
                 const gridCoords = this._canvasToGridCoords(x, y);
-                potentialDragItem = { id: gem.id, name: gem.name, from: 'board', gridPattern: gem.gridPattern, offsetX: (gridCoords.x - gem.x) * this.cellWidth, offsetY: (gridCoords.y - gem.y) * this.cellHeight };
+                potentialDragItem = {
+                    id: gem.id,
+                    name: gem.name,
+                    from: 'board',
+                    gridPattern: gem.gridPattern,
+                    offsetX: (gridCoords.x - gem.x) * this.cellWidth,
+                    offsetY: (gridCoords.y - gem.y) * this.cellHeight
+                };
+                
+                if (gem.isFlippable) {
+                    this.longPressTimeout = window.setTimeout(() => {
+                        this.game.flipPlayerGem(gem.id);
+                        this.longPressTriggered = true;
+                        this.dragStartInfo = null;
+                        this.isDragging = false; 
+                    }, 400);
+                }
             }
         }
         
-        if (potentialDragItem) {
+        // Always set dragStartInfo for tap detection on canvas or toolbar.
+        if (isOverCanvas || toolbarGemEl) {
             this.dragStartInfo = {
                 item: potentialDragItem,
                 startX: clientX,
@@ -1307,28 +1329,40 @@ export class UI {
         const coords = this.getPointerCoordinates(e);
         if (!coords) return;
         const { clientX, clientY } = coords;
-
+    
         if (this.dragStartInfo) {
             if (e instanceof TouchEvent) e.preventDefault();
-            if (!this.isDragging) {
-                const dx = clientX - this.dragStartInfo.startX;
-                const dy = clientY - this.dragStartInfo.startY;
-                if (Math.sqrt(dx * dx + dy * dy) > 5) {
+            
+            const dx = clientX - this.dragStartInfo.startX;
+            const dy = clientY - this.dragStartInfo.startY;
+            
+            if (!this.isDragging && Math.sqrt(dx * dx + dy * dy) > 10) { // Drag starts
+                // Moved too far, cancel long press
+                if (this.longPressTimeout) {
+                    clearTimeout(this.longPressTimeout);
+                    this.longPressTimeout = null;
+                }
+                
+                // Only start dragging if we started on a draggable item.
+                if (this.dragStartInfo.item) {
                     this.isDragging = true;
                     this.draggedItemInfo = this.dragStartInfo.item;
                     if(this.draggedItemInfo.element) {
                         this.draggedItemInfo.element.classList.add('dragging');
                     }
+                } else {
+                    // If not on a draggable item, movement cancels the tap intent.
+                    this.dragStartInfo = null;
                 }
             }
-
+    
             if (this.isDragging) {
                 const canvasRect = this.gemCanvas.getBoundingClientRect();
                 this.dragPos = { x: clientX - canvasRect.left, y: clientY - canvasRect.top };
                 this.redrawAll();
             }
         } else {
-            const isOverCanvas = e.target === this.gemCanvas;
+            const isOverCanvas = (e.target as HTMLElement).closest('#gem-canvas');
             if (isOverCanvas) {
                 this.handleCanvasHover(clientX, clientY);
             } else {
@@ -1338,47 +1372,55 @@ export class UI {
     }
     
     private handlePointerUp(e: MouseEvent | TouchEvent) {
+        if (this.longPressTimeout) {
+            clearTimeout(this.longPressTimeout);
+            this.longPressTimeout = null;
+        }
+    
+        if (this.longPressTriggered) {
+            this.longPressTriggered = false;
+            this.dragStartInfo = null;
+            this.isDragging = false;
+            this.redrawAll();
+            return;
+        }
+    
         const coords = this.getPointerCoordinates(e);
-        if (!coords) return;
+        if (!coords) {
+            this.dragStartInfo = null;
+            this.isDragging = false;
+            return;
+        }
         const { clientX, clientY } = coords;
-
+    
         const wasDragging = this.isDragging;
-
+    
         // --- Finish Drag ---
         if (wasDragging && this.draggedItemInfo) {
             const canvasRect = this.gemCanvas.getBoundingClientRect();
             const isOverCanvas = clientX >= canvasRect.left && clientX <= canvasRect.right && clientY >= canvasRect.top && clientY <= canvasRect.bottom;
             
-            if (isOverCanvas) {
+            if (isOverCanvas && this.lastValidDropTarget.isValid) {
                 const { x, y } = this.lastValidDropTarget;
-                const { gridPattern } = this.draggedItemInfo;
-                const pWidth = gridPattern[0].length;
-                const pHeight = gridPattern.length;
                 
-                const isWithinBounds = x >= 0 && y >= 0 && (x + pWidth) <= GRID_WIDTH && (y + pHeight) <= GRID_HEIGHT;
-        
-                if (isWithinBounds) {
-                    if (this.draggedItemInfo.from === 'toolbar') {
-                        this.game.addPlayerGem(this.draggedItemInfo.name, x, y);
-                    } else if (this.draggedItemInfo.id) {
-                        this.game.movePlayerGem(this.draggedItemInfo.id, x, y);
-                    }
+                if (this.draggedItemInfo.from === 'toolbar') {
+                    this.game.addPlayerGem(this.draggedItemInfo.name, x, y);
+                } else if (this.draggedItemInfo.id) {
+                    this.game.movePlayerGem(this.draggedItemInfo.id, x, y);
                 }
-            } else {
-                if (this.draggedItemInfo.from === 'board' && this.draggedItemInfo.id) {
-                    this.game.removePlayerGem(this.draggedItemInfo.id);
-                }
+            } else if (this.draggedItemInfo.from === 'board' && this.draggedItemInfo.id) {
+                // If dropped outside or on an invalid spot, remove it
+                this.game.removePlayerGem(this.draggedItemInfo.id);
             }
         }
         // --- Handle Tap ---
-        else {
+        else if (this.dragStartInfo) { // A tap occurred
             const target = e.target as HTMLElement;
-            // Only handle tap if it happened on the canvas
             if(target.closest('#gem-canvas')) {
                 const rect = this.gemCanvas.getBoundingClientRect();
                 const x = clientX - rect.left;
                 const y = clientY - rect.top;
-
+    
                 const clickedEmitter = this.emitters.find(em => em.isInside(x, y));
                 if (clickedEmitter) {
                     if (!clickedEmitter.isUsed) {
@@ -1397,7 +1439,8 @@ export class UI {
                     }
                 } else {
                     const clickedGem = this.getGemAtCanvasPos(x, y);
-                    if (clickedGem) {
+                    // Ensure the tap started and ended on the same gem.
+                    if (clickedGem && this.dragStartInfo.item?.id === clickedGem.id) {
                         this.game.setSelectedWave(null, null);
                         this.game.rotatePlayerGem(clickedGem.id);
                     } else {
@@ -1407,10 +1450,10 @@ export class UI {
                 }
             }
         }
-
+    
         // --- Reset State ---
-        if (this.dragStartInfo?.item.element) {
-            this.dragStartInfo.item.element.classList.remove('dragging');
+        if (this.draggedItemInfo?.element) {
+            this.draggedItemInfo.element.classList.remove('dragging');
         }
         this.dragStartInfo = null;
         this.isDragging = false;

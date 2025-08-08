@@ -1,4 +1,3 @@
-
 export type Language = 'de' | 'en';
 
 const translations = {
@@ -76,7 +75,7 @@ const translations = {
             item1: "Sende Lichtwellen von den Rändern in das Spielfeld.",
             item2: "Die austretende Farbe und Position verraten, welche Steine getroffen wurden.",
             item3: "Ziehe Edelsteine aus der Werkzeugleiste auf das Feld. Du kannst sie verschieben und drehen.",
-            item4: "Ein Klick auf einen platzierten Stein dreht ihn um 90°.",
+            item4: "Ein Klick auf einen platzierten Stein dreht ihn um 90°, ein langes Drücken spiegelt ihn (falls möglich).",
             item5: "Steine dürfen sich nicht überlappen oder Kante an Kante liegen.",
             item6: "Drücke 'n' für ein neues Level oder 'esc' um zum Menü zurückzukehren.",
             colorMixingTitle: "Farbmischung",
@@ -85,7 +84,7 @@ const translations = {
             panel: {
                 item1: "Sende Lichtwellen, um zu sehen, wo sie austreten und welche Farbe sie haben.",
                 item2: "Ziehe die Edelsteine auf das Feld, um die Lösung nachzubauen.",
-                item3: "Klicke auf einen platzierten Stein, um ihn zu drehen.",
+                item3: "Klicke auf einen platzierten Stein, um ihn zu drehen. Langes Drücken spiegelt ihn.",
                 item4: "Steine dürfen sich nicht überlappen oder Kante an Kante liegen.",
             }
         },
@@ -231,7 +230,7 @@ const translations = {
             item1: "Send light waves from the edges into the game board.",
             item2: "The exiting color and position reveal which gems were hit.",
             item3: "Drag gems from the toolbar onto the board. You can move and rotate them.",
-            item4: "Clicking on a placed gem rotates it by 90°.",
+            item4: "Clicking on a placed gem rotates it by 90°. A long press flips it (if possible).",
             item5: "Gems cannot overlap or be edge-to-edge.",
             item6: "Press 'n' for a new level or 'esc' to return to the menu.",
             colorMixingTitle: "Color Mixing",
@@ -240,7 +239,7 @@ const translations = {
             panel: {
                 item1: "Send light waves to see where they exit and what color they have.",
                 item2: "Drag the gems onto the board to replicate the solution.",
-                item3: "Click on a placed gem to rotate it.",
+                item3: "Click on a placed gem to rotate it. A long press flips it.",
                 item4: "Gems cannot overlap or be edge-to-edge.",
             }
         },
