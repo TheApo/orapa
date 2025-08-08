@@ -196,6 +196,24 @@ html, body {
     background-color: var(--border-color);
 }
 
+#screen-difficulty .subtitle {
+    margin-top: 1rem;
+    margin-bottom: 2rem;
+}
+
+#screen-difficulty > .screen-content {
+    flex-grow: 1;
+}
+
+#screen-difficulty > .menu-buttons {
+    padding-top: 1rem;
+    text-align: center;
+}
+
+#screen-difficulty > .menu-buttons .btn-back {
+    margin-top: 0;
+}
+
 #difficulty-options .difficulty-desc {
     font-size: 0.9rem;
     font-weight: 300;

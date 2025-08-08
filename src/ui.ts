@@ -199,7 +199,7 @@ export class UI {
                 if (gameState.difficulty) this.game.start(gameState.difficulty);
                 return;
             }
-            if (e.key === 'Escape' && (gameState.status === GameStatus.PLAYING || gameState.status === GameStatus.GAME_OVER || gameState.status === GameStatus.CUSTOM_CREATOR)) {
+            if (e.key === 'Escape' && (gameState.status === GameStatus.PLAYING || gameState.status === GameStatus.GAME_OVER || gameState.status === GameStatus.CUSTOM_CREATOR || gameState.status === GameStatus.DIFFICULTY_SELECT)) {
                 this.game.showMainMenu();
                 return;
             }
