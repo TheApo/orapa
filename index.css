@@ -465,7 +465,6 @@ html, body {
 /* The main canvas handles all drawing and interaction */
 #gem-canvas {
     z-index: 1;
-    cursor: pointer;
 }
 /* Add an outline for keyboard navigation accessibility */
 #gem-canvas:focus-visible {

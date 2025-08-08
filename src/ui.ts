@@ -1,4 +1,5 @@
 
+
 import { Game } from './game';
 import { GEMS, GEM_SETS, COLORS, COLOR_MIXING, DIFFICULTIES, COLOR_NAME_KEYS, RATINGS, BASE_COLORS, CUSTOM_SHAPES } from './constants';
 import { gameState, Gem, LogEntry, GameStatus } from './state';
@@ -649,11 +650,14 @@ export class UI {
             if (gameState.debugMode) this.drawDebugSolution(ctx);
             
             this.drawPlayerGems(ctx);
-            this._drawSelectedWaveTooltip(ctx);
 
             if (this.isDragging && this.draggedItemInfo) {
                 this.drawDragPreview(ctx);
             }
+
+            // Draw tooltip on the top-most canvas to ensure it's above all other elements.
+            // It's drawn after paths so it appears above them as well.
+            this._drawSelectedWaveTooltip(this.pathCtx);
         }
     }
     
@@ -801,14 +805,18 @@ export class UI {
         }
     
         // Overrides
+        if (isHovered && !isInvalid) {
+             ctx.shadowColor = 'white';
+             ctx.shadowBlur = 10;
+        }
         if (isInvalid) {
             ctx.fillStyle = 'rgba(231, 76, 60, 0.5)';
             ctx.strokeStyle = COLORS.INVALID_GEM;
             ctx.lineWidth = 2;
-        }
-        if (isHovered && !isInvalid) {
-             ctx.shadowColor = 'white';
-             ctx.shadowBlur = 10;
+            if (isHovered) {
+                ctx.shadowColor = 'white';
+                ctx.shadowBlur = 10;
+            }
         }
     
         ctx.beginPath();
@@ -1174,11 +1182,17 @@ export class UI {
         const y = clientY - rect.top;
         this.dragPos = { x, y };
         
+        const gem = this.getGemAtCanvasPos(x, y);
+        const emitter = this.emitters.find(em => em.isInside(x, y));
+        
+        this.gemCanvas.style.cursor = (gem || emitter) ? 'pointer' : 'default';
+
         this.redrawAll();
     }
     
     private handleCanvasMouseLeave() {
         this.dragPos = {x: -1, y: -1};
+        this.gemCanvas.style.cursor = 'default';
         this.redrawAll();
     }
 
@@ -1347,6 +1361,7 @@ export class UI {
                 if (this.dragStartInfo.item) {
                     this.isDragging = true;
                     this.draggedItemInfo = this.dragStartInfo.item;
+                    this.gemCanvas.style.cursor = 'grabbing';
                     if(this.draggedItemInfo.element) {
                         this.draggedItemInfo.element.classList.add('dragging');
                     }
@@ -1400,8 +1415,9 @@ export class UI {
             const canvasRect = this.gemCanvas.getBoundingClientRect();
             const isOverCanvas = clientX >= canvasRect.left && clientX <= canvasRect.right && clientY >= canvasRect.top && clientY <= canvasRect.bottom;
             
-            if (isOverCanvas && this.lastValidDropTarget.isValid) {
-                const { x, y } = this.lastValidDropTarget;
+            if (isOverCanvas) {
+                // Drop happened inside the canvas, always place/move the gem
+                const { x, y } = this.lastValidDropTarget; // these coords were calculated on move
                 
                 if (this.draggedItemInfo.from === 'toolbar') {
                     this.game.addPlayerGem(this.draggedItemInfo.name, x, y);
@@ -1409,7 +1425,7 @@ export class UI {
                     this.game.movePlayerGem(this.draggedItemInfo.id, x, y);
                 }
             } else if (this.draggedItemInfo.from === 'board' && this.draggedItemInfo.id) {
-                // If dropped outside or on an invalid spot, remove it
+                // If dropped outside the canvas, remove it from board
                 this.game.removePlayerGem(this.draggedItemInfo.id);
             }
         }
@@ -1458,6 +1474,7 @@ export class UI {
         this.dragStartInfo = null;
         this.isDragging = false;
         this.draggedItemInfo = null;
+        this.gemCanvas.style.cursor = 'default';
         this.redrawAll();
         this.updateToolbar();
     }
