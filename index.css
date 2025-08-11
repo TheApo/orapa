@@ -1,4 +1,5 @@
 
+
 :root {
     --bg-color: #2c3e50;
     --surface-color: #34495e;
@@ -138,12 +139,13 @@ html, body {
 }
 
 .version-info {
-    position: absolute;
-    bottom: 10px;
-    left: 50%;
-    transform: translateX(-50%);
+    width: 100%;
+    text-align: center;
+    margin-top: 1.5rem; /* Space between rules and version */
+    padding-bottom: 1rem;
     font-size: 0.75rem;
-    color: rgba(255, 255, 255, 0.4);
+    color: rgba(236, 240, 241, 0.7);
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
     pointer-events: none;
 }
 
@@ -241,6 +243,11 @@ html, body {
 #intro-rules ul {
     padding-left: 1.5rem;
     margin: 0.5rem 0;
+}
+#intro-rules ul li ul {
+    margin-top: 0.5rem;
+    margin-bottom: 0.5rem;
+    padding-left: 1.2rem;
 }
 #intro-rules strong {
     color: var(--primary-color);
@@ -493,7 +500,7 @@ html, body {
     gap: 0.5rem;
     width: 100%;
     flex-grow: 1;
-    overflow-y: auto;
+    overflow: auto; /* Allow both horizontal and vertical scrolling */
     min-height: 0;
     padding: 0 0.5rem;
 }
@@ -518,9 +525,6 @@ html, body {
 }
 
 #end-solution-wrapper {
-    width: 100%;
-    max-width: 450px;
-    aspect-ratio: 10 / 12;
     border: 2px solid var(--bg-color);
     padding: 5px;
     margin: 0.5rem 0;
@@ -533,9 +537,12 @@ html, body {
     flex-shrink: 0;
 }
 #end-solution-canvas {
-    width: 100%;
-    height: 100%;
     min-height: 0;
+    /* For sharper scaled images */
+    image-rendering: -moz-crisp-edges;
+    image-rendering: -webkit-crisp-edges;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
 }
 
 #end-rating-legend {
@@ -583,11 +590,9 @@ html, body {
 
 /* --- Controls --- */
 #controls-container {
-    /* No longer absolutely positioned; part of the screen's flex layout */
     width: 100%;
-    z-index: 200; /* Ensure it's above the canvases (might not be necessary) */
-    flex-shrink: 0; /* Prevents controls from shrinking if content overflows */
-
+    z-index: 200;
+    flex-shrink: 0;
     background-color: var(--bg-color);
     border-top: 1px solid var(--border-color);
     padding-bottom: env(safe-area-inset-bottom);
@@ -606,20 +611,26 @@ html, body {
     font-size: 1rem;
     transition: background-color 0.2s, color 0.2s;
     -webkit-tap-highlight-color: transparent;
+    border-right: 1px solid var(--bg-color);
+}
+#tab-buttons .tab-btn:last-child {
+    border-right: none;
 }
 .tab-btn.active {
     background: var(--bg-color);
     font-weight: bold;
     border-bottom-color: var(--bg-color);
 }
-.tab-panel { display: none; padding: 1rem; }
-.tab-panel.active { display: block; }
+.tab-panel { 
+    display: none; 
+    padding: 1rem; 
+}
+.tab-panel.active { 
+    display: block; 
+    background: var(--bg-color);
+}
 
-.actions-content-wrapper {
-    background: var(--surface-color);
-    border: 1px solid var(--border-color);
-    border-radius: 5px;
-    padding: 1rem;
+#actions-panel.active {
     display: flex;
     flex-direction: column;
     gap: 1rem;
@@ -630,7 +641,6 @@ html, body {
     gap: 0.5rem;
     flex-wrap: wrap;
     align-items: center;
-    /* margin-bottom: 1rem; Removed, using gap on parent */
 }
 .toolbar-gem {
     width: 50px; 
@@ -656,6 +666,50 @@ html, body {
 .toolbar-gem-canvas {
     width: 100%;
     height: 100%;
+}
+
+.mode-switch-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.mode-switch-wrapper > span {
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+#mode-switch-container {
+    display: flex;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.mode-btn {
+    flex-grow: 1;
+    padding: 0.5rem 0.8rem;
+    font-size: 0.9rem;
+    background-color: var(--surface-color);
+    color: var(--text-color);
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.mode-btn:not(:last-child) {
+    border-right: 1px solid var(--border-color);
+}
+
+.mode-btn:hover:not(.active) {
+    background-color: var(--bg-color);
+}
+
+.mode-btn.active {
+    background-color: var(--primary-color);
+    color: white;
+    font-weight: bold;
 }
 
 
@@ -687,8 +741,7 @@ html, body {
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
-    padding: 0.8rem 1rem;
-    border-top: 1px solid var(--border-color);
+    /* margin-bottom is removed as flex-gap in actions-panel will handle it */
     -webkit-tap-highlight-color: transparent;
 }
 .preview-toggle-wrapper label {
@@ -734,7 +787,7 @@ html, body {
 
 #log-list {
     list-style-type: none;
-    height: 120px;
+    height: 200px;
     overflow-y: auto;
     border: 1px solid var(--border-color);
     border-radius: 5px;

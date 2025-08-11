@@ -5,8 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Orapa Mine</title>
-  <script type="module" crossorigin src="./assets/index-Cw8WYGwa.js"></script>
-  <link rel="stylesheet" crossorigin href="./assets/index-gTs6hq3W.css">
+  <script type="module" crossorigin src="./assets/index-CXovKhoe.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-BBRevvAV.css">
 </head>
 <body>
     <div id="app">
@@ -24,8 +24,8 @@
                 </div>
                 <!-- Rules are now displayed directly on the main screen -->
                 <div id="intro-rules"></div>
+                <div class="version-info">Version: 1.02</div>
             </div>
-            <div class="version-info">Version: 1.02</div>
         </div>
 
         <!-- Difficulty Select Screen -->
@@ -106,19 +106,24 @@
                 </div>
                 <div id="tab-panels">
                     <div id="actions-panel" class="tab-panel active">
-                        <div class="actions-content-wrapper">
-                            <div id="gem-toolbar-wrapper">
-                                <span data-i18n-key="gameScreen.availableGems"></span>
-                                <div id="gem-toolbar"></div>
+                        <div class="mode-switch-wrapper">
+                            <span data-i18n-key="gameScreen.interactionMode"></span>
+                            <div id="mode-switch-container">
+                                <button id="mode-wave-btn" class="mode-btn active" data-i18n-key="gameScreen.modeWave"></button>
+                                <button id="mode-query-btn" class="mode-btn" data-i18n-key="gameScreen.modeQuery"></button>
                             </div>
-                            <div class="preview-toggle-wrapper">
-                                <label for="preview-toggle" data-i18n-key="gameScreen.showPath"></label>
-                                <input type="checkbox" id="preview-toggle">
-                            </div>
-                            <div id="action-buttons">
-                                <button id="check-solution-btn" data-i18n-key="buttons.submitSolution"></button>
-                                <button id="give-up-btn" data-i18n-key="buttons.giveUp"></button>
-                            </div>
+                        </div>
+                        <div id="gem-toolbar-wrapper">
+                            <span data-i18n-key="gameScreen.availableGems"></span>
+                            <div id="gem-toolbar"></div>
+                        </div>
+                        <div class="preview-toggle-wrapper">
+                            <label for="preview-toggle" data-i18n-key="gameScreen.showPath"></label>
+                            <input type="checkbox" id="preview-toggle">
+                        </div>
+                        <div id="action-buttons">
+                            <button id="check-solution-btn" data-i18n-key="buttons.submitSolution"></button>
+                            <button id="give-up-btn" data-i18n-key="buttons.giveUp"></button>
                         </div>
                     </div>
                     <div id="log-panel" class="tab-panel">

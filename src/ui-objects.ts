@@ -1,4 +1,5 @@
-import { CellState } from './grid';
+
+import { CellState, GRID_WIDTH, GRID_HEIGHT } from './grid';
 
 export type EmitterState = 'normal' | 'focused';
 
@@ -18,6 +19,31 @@ export class EmitterButton {
         this.id = id;
         this.label = label;
         this.rect = { x: 0, y: 0, width: 0, height: 0 };
+    }
+
+    updateRect(cellWidth: number, cellHeight: number, gap: number) {
+        this.rect.width = cellWidth;
+        this.rect.height = cellHeight;
+        const idNum = parseInt(this.id.substring(1)) - 1;
+        
+        switch (this.id[0]) {
+            case 'T':
+                this.rect.x = (idNum + 1) * (cellWidth + gap);
+                this.rect.y = 0;
+                break;
+            case 'B':
+                this.rect.x = (idNum + 1) * (cellWidth + gap);
+                this.rect.y = (GRID_HEIGHT + 1) * (cellHeight + gap);
+                break;
+            case 'L':
+                this.rect.x = 0;
+                this.rect.y = (idNum + 1) * (cellHeight + gap);
+                break;
+            case 'R':
+                this.rect.x = (GRID_WIDTH + 1) * (cellWidth + gap);
+                this.rect.y = (idNum + 1) * (cellHeight + gap);
+                break;
+        }
     }
 
     isInside(x: number, y: number): boolean {

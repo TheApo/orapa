@@ -1,5 +1,7 @@
-import { GEMS, GEM_SETS, DIFFICULTIES } from './constants';
-import { gameState, GameStatus, Gem } from './state';
+
+
+import { GEMS, GEM_SETS, DIFFICULTIES, BASE_COLORS } from './constants';
+import { gameState, GameStatus, Gem, InteractionMode, WaveLog, QueryLog } from './state';
 import { UI } from './ui';
 import { tracePath } from './path-tracer';
 import { CellState, GRID_WIDTH, GRID_HEIGHT } from './grid';
@@ -65,6 +67,7 @@ export class Game {
     start(difficulty: string) {
         gameState.difficulty = difficulty;
         gameState.status = GameStatus.PLAYING;
+        gameState.interactionMode = InteractionMode.WAVE;
         this._initSecretGrid();
         
         gameState.secretGems = this._placeSecretGems();
@@ -78,10 +81,11 @@ export class Game {
         gameState.waveCount = 0;
         gameState.debugMode = false;
         gameState.showPlayerPathPreview = false;
-        gameState.selectedLogEntryWaveId = null;
+        gameState.selectedLogEntryId = null;
         gameState.previewSourceEmitterId = null;
         gameState.activePlayerPath = null;
         gameState.activePlayerResult = null;
+        gameState.permanentQueryResults = [];
         
         this.ui.setupGameUI();
         this.ui.showScreen('game');
@@ -103,7 +107,7 @@ export class Game {
         this.ui.redrawAll();
     }
 
-    private getGemDefinition(gemName: string): any {
+    getGemDefinition(gemName: string): any {
         const isCustom = gameState.difficulty === DIFFICULTIES.CUSTOM;
         const definition = isCustom 
             ? gameState.customGemDefinitions[gemName]
@@ -115,7 +119,7 @@ export class Game {
     }
 
     sendWave(emitterId: string) {
-        if (gameState.status !== GameStatus.PLAYING) return;
+        if (gameState.status !== GameStatus.PLAYING || gameState.interactionMode !== InteractionMode.WAVE) return;
         
         gameState.waveCount++;
 
@@ -129,8 +133,9 @@ export class Game {
         const playerResult = tracePath(playerGrid, playerGemMap, emitterId, this);
 
         // 3. Create log entry
-        const logEntry = {
-            waveId: emitterId,
+        const logEntry: WaveLog = {
+            type: InteractionMode.WAVE,
+            id: emitterId,
             result,
             path: result.path,
             playerPath: playerResult.path,
@@ -138,8 +143,76 @@ export class Game {
         };
         gameState.log.push(logEntry);
         
-        this.ui.addLogEntry(logEntry, emitterId);
-        this.setSelectedWave(emitterId, emitterId);
+        this.ui.addLogEntry(logEntry);
+        this.setSelectedLogEntry(emitterId, emitterId);
+    }
+
+    queryCell(x: number, y: number) {
+        if (gameState.interactionMode !== InteractionMode.QUERY) return;
+        if (x < 0 || x >= GRID_WIDTH || y < 0 || y >= GRID_HEIGHT) return;
+        
+        gameState.waveCount++;
+    
+        const secretGem = this.secretGemMap.get(`${y},${x}`);
+        const secretResult = this.getQueryResult(secretGem);
+
+        // Only add a permanent result if one for this cell doesn't exist yet.
+        const alreadyHasPermanentResult = gameState.permanentQueryResults.some(qr => qr.coords.x === x && qr.coords.y === y);
+        if (!alreadyHasPermanentResult) {
+            gameState.permanentQueryResults.push({
+                coords: { x, y },
+                result: secretResult,
+            });
+        }
+    
+        // It's useful to also show the player's gem in the log for comparison.
+        const playerGemMap = new Map<string, Gem>();
+        gameState.playerGems.forEach(gem => this._paintGemOnGrid(gem, undefined, playerGemMap));
+        const playerGem = playerGemMap.get(`${y},${x}`);
+        const playerResult = this.getQueryResult(playerGem);
+        
+        const logEntry: QueryLog = {
+            type: InteractionMode.QUERY,
+            id: `query_${x}_${y}_${Date.now()}`,
+            coords: { x, y },
+            result: secretResult,
+            playerResult: playerResult,
+        };
+        
+        gameState.log.push(logEntry);
+        this.ui.addLogEntry(logEntry);
+        this.setSelectedLogEntry(logEntry.id);
+        this.setInteractionMode(InteractionMode.WAVE);
+    }
+
+    public getQueryResult(gem: Gem | undefined): { colorNameKey: string | null; colorHex: string | null; } {
+        if (!gem) {
+            return { colorNameKey: 'log.empty', colorHex: null };
+        }
+        const gemDef = this.getGemDefinition(gem.name);
+        if (!gemDef) {
+            return { colorNameKey: 'log.empty', colorHex: null };
+        }
+    
+        // Find the base color key ('ROT', 'WEISS', etc.)
+        let baseColorKey: string | null = null;
+        if (gemDef.special === 'absorbs') {
+            baseColorKey = 'SCHWARZ';
+        } else if (gemDef.baseGems.length === 0) {
+            baseColorKey = 'TRANSPARENT';
+        } else {
+            baseColorKey = gemDef.baseGems[0];
+        }
+        
+        if (baseColorKey && BASE_COLORS[baseColorKey as keyof typeof BASE_COLORS]) {
+            const colorInfo = BASE_COLORS[baseColorKey as keyof typeof BASE_COLORS];
+            return {
+                colorNameKey: colorInfo.nameKey,
+                colorHex: gemDef.color,
+            };
+        }
+        
+        return { colorNameKey: 'log.empty', colorHex: null }; // Fallback
     }
 
     checkSolution() {
@@ -293,15 +366,39 @@ export class Game {
         return this._isPlacementValid(gemToTest, gameState.playerGems);
     }
     
-    public setSelectedWave(logEntryWaveId: string | null, sourceEmitterId: string | null) {
-        gameState.selectedLogEntryWaveId = logEntryWaveId;
-        gameState.previewSourceEmitterId = sourceEmitterId;
+    public setInteractionMode(mode: InteractionMode) {
+        if (gameState.interactionMode !== mode) {
+            gameState.interactionMode = mode;
+            this.ui.updateInteractionModeUI(mode);
+            this.ui.redrawAll(); // Redraw to update cursor and potential hover states
+        }
+    }
+    
+    public setSelectedLogEntry(id: string | null, sourceEmitterId?: string | null) {
+        gameState.selectedLogEntryId = id;
+    
+        if (id === null) {
+            gameState.previewSourceEmitterId = null;
+        } else {
+            const logEntry = gameState.log.find(l => l.id === id);
+            if (logEntry?.type === InteractionMode.WAVE) {
+                 // If a source emitter isn't specified, default to the wave's origin
+                gameState.previewSourceEmitterId = sourceEmitterId || logEntry.id;
+            } else {
+                // It's a query, no path preview is possible.
+                gameState.previewSourceEmitterId = null;
+            }
+        }
+        
         this._updateActivePlayerPathPreview();
         this.ui.handleSelectionChange();
     }
 
     private _updateActivePlayerPathPreview() {
-        if (!gameState.previewSourceEmitterId) {
+        const selectedLog = gameState.log.find(l => l.id === gameState.selectedLogEntryId);
+        
+        // No preview if nothing is selected, or if the selected item is a query
+        if (!gameState.previewSourceEmitterId || !selectedLog || selectedLog.type !== InteractionMode.WAVE) {
             gameState.activePlayerPath = null;
             gameState.activePlayerResult = null;
             return;
@@ -408,15 +505,17 @@ export class Game {
         return true;
     }
 
-    private _paintGemOnGrid(gem: Gem, grid: CellState[][], gemMap?: Map<string, Gem>) {
+    private _paintGemOnGrid(gem: Gem, grid?: CellState[][], gemMap?: Map<string, Gem>) {
         const { gridPattern, x, y } = gem;
         for (let r = 0; r < gridPattern.length; r++) {
             for (let c = 0; c < gridPattern[r].length; c++) {
                 const cellState = gridPattern[r][c];
                 if (cellState !== CellState.EMPTY) {
-                    if(grid[y + r] && grid[y + r][x + c] !== undefined) {
-                       grid[y + r][x + c] = cellState;
-                       gemMap?.set(`${y+r},${x+c}`, gem);
+                    if (grid && grid[y + r] && grid[y + r][x + c] !== undefined) {
+                        grid[y + r][x + c] = cellState;
+                    }
+                    if (gemMap) {
+                        gemMap.set(`${y + r},${x + c}`, gem);
                     }
                 }
             }
