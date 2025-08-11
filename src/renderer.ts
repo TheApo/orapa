@@ -9,9 +9,11 @@ import { CellState, GRID_WIDTH, GRID_HEIGHT } from './grid';
 import { EmitterButton } from './ui-objects';
 import { t } from './i18n';
 import { InputHandler } from './input-handler';
+import { UI } from './ui';
 
 export class Renderer {
     private game: Game;
+    private ui: UI;
     private inputHandler?: InputHandler;
 
     // Canvas Elements
@@ -31,8 +33,9 @@ export class Renderer {
     // Drawable objects
     private emitters: EmitterButton[] = [];
 
-    constructor(game: Game) {
+    constructor(game: Game, ui: UI) {
         this.game = game;
+        this.ui = ui;
 
         this.boardWrapper = document.getElementById('game-board-wrapper')!;
         this.gemCanvas = document.getElementById('gem-canvas') as HTMLCanvasElement;
@@ -504,7 +507,7 @@ export class Renderer {
         const contextEmitter = this.emitters.find(e => e.id === contextEmitterId);
         if (!contextEmitter) return;
 
-        const pathColorName = t(COLOR_NAME_KEYS[[...selectedLog.result.colors].sort().join(',')] || 'log.unknownMix');
+        const pathColorName = this.ui.getPathColorName(selectedLog.result);
         const text = (contextEmitterId === selectedLog.id)
             ? `${selectedLog.id} ➔ ${pathColorName} ➔ ${selectedLog.result.exitId}`
             : `${selectedLog.result.exitId} ➔ ${pathColorName} ➔ ${selectedLog.id}`;

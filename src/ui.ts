@@ -59,7 +59,7 @@ export class UI {
 
     bindGame(gameInstance: Game) {
         this.game = gameInstance;
-        this.renderer = new Renderer(this.game);
+        this.renderer = new Renderer(this.game, this);
         this.inputHandler = new InputHandler(this.game, this);
         this.customCreatorUI = new CustomCreatorUI(this.game, this.renderer);
 
@@ -435,7 +435,7 @@ export class UI {
         });
     }
 
-    private getPathColorName(result: { colors: string[], absorbed?: boolean }): string {
+    public getPathColorName(result: { colors: string[], absorbed?: boolean }): string {
         if (result.absorbed) return t('log.absorbed');
         if (result.colors.length === 0) return t('log.noColor');
         const key = [...result.colors].sort().join(',');
