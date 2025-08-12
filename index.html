@@ -136,6 +136,25 @@
                 </div>
             </footer>
         </div>
+
+        <!-- Custom Shape Designer Modal -->
+        <div id="custom-shape-designer-modal" class="screen hidden v-center">
+            <div class="designer-content">
+                <h3 data-i18n-key="customDesigner.title"></h3>
+                <p data-i18n-key="customDesigner.instruction"></p>
+                <div id="designer-grid" class="designer-grid-container">
+                    <!-- Grid will be generated here -->
+                </div>
+                <div id="designer-preview-wrapper">
+                     <h4 data-i18n-key="customDesigner.preview"></h4>
+                     <canvas id="designer-preview-canvas"></canvas>
+                </div>
+                <div class="menu-buttons">
+                    <button id="btn-finish-design" data-i18n-key="customDesigner.finish"></button>
+                    <button id="btn-cancel-design" class="btn-back" data-i18n-key="buttons.back"></button>
+                </div>
+            </div>
+        </div>
         
     </div>
 <script type="module" src="/index.tsx"></script>

@@ -138,7 +138,7 @@ export const CUSTOM_SHAPES: { [key: string]: { nameKey: string, gridPattern: Cel
     SHAPE_SQUARE: { nameKey: 'shapes.square', gridPattern: [[CellState.TRIANGLE_BR, CellState.BLOCK], [CellState.BLOCK, CellState.TRIANGLE_TL]] },
     SHAPE_BAR: { nameKey: 'shapes.bar', gridPattern: [[CellState.TRIANGLE_BL], [CellState.BLOCK], [CellState.TRIANGLE_TL]] },
     SHAPE_SMALL: { nameKey: 'shapes.small', gridPattern: [[CellState.TRIANGLE_TR, CellState.TRIANGLE_BL]] },
-    SHAPE_STRANGE: { nameKey: 'shapes.strange', gridPattern: [[CellState.TRIANGLE_BL, CellState.TRIANGLE_BR], [CellState.TRIANGLE_TL, CellState.TRIANGLE_TR]] },
+    SHAPE_CUSTOM_DESIGN: { nameKey: 'shapes.custom', gridPattern: [[CellState.EMPTY, CellState.BLOCK, CellState.EMPTY], [CellState.BLOCK, CellState.BLOCK, CellState.BLOCK], [CellState.EMPTY, CellState.BLOCK, CellState.EMPTY]] },
 };
 
 

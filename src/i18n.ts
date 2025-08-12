@@ -1,3 +1,4 @@
+
 export type Language = 'de' | 'en';
 
 const translations = {
@@ -33,6 +34,12 @@ const translations = {
             alert: {
                 selectColorAndShape: "Bitte wähle zuerst eine Farbe und eine Form aus."
             }
+        },
+        customDesigner: {
+            title: "Eigene Form entwerfen",
+            instruction: "Klicke auf die Zellen, um ihren Typ zu ändern (Leer, Block, Diagonale). Entwerfe einen Edelstein innerhalb des 4x4-Rasters.",
+            preview: "Vorschau (optimierte Grösse):",
+            finish: "Design fertigstellen",
         },
         gameScreen: {
             tabs: {
@@ -129,7 +136,7 @@ const translations = {
             square: "Quadrat",
             bar: "Stab",
             small: "Klein",
-            strange: "Seltsam",
+            custom: "Eigene Form",
         },
         log: {
             absorbed: "Absorbiert",
@@ -195,6 +202,12 @@ const translations = {
             alert: {
                 selectColorAndShape: "Please select a color and a shape first."
             }
+        },
+        customDesigner: {
+            title: "Design Custom Shape",
+            instruction: "Click on the cells to change their type (Empty, Block, Diagonal). Design a gem within the 4x4 grid.",
+            preview: "Preview (cropped size):",
+            finish: "Finish Design",
         },
         gameScreen: {
             tabs: {
@@ -291,7 +304,7 @@ const translations = {
             square: "Square",
             bar: "Bar",
             small: "Small",
-            strange: "Strange",
+            custom: "Custom Shape",
         },
         log: {
             absorbed: "Absorbed",

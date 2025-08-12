@@ -10,6 +10,8 @@ type CustomCreatorState = {
     selectedColorKey: string | null;
     selectedShapeKey: string | null;
     gems: any[];
+    designerGridState: CellState[][];
+    customDesignedShape: { gridPattern: CellState[][] } | null;
 };
 
 export class CustomCreatorUI {
@@ -23,11 +25,20 @@ export class CustomCreatorUI {
     private customGemList: HTMLElement;
     private customValidationFeedback: HTMLElement;
     private btnStartCustomLevel: HTMLButtonElement;
+    
+    // Designer Modal Elements
+    private designerModal: HTMLElement;
+    private designerGrid: HTMLElement;
+    private designerPreviewCanvas: HTMLCanvasElement;
+    private btnFinishDesign: HTMLButtonElement;
+    private btnCancelDesign: HTMLButtonElement;
 
     private state: CustomCreatorState = {
         selectedColorKey: null,
         selectedShapeKey: null,
         gems: [],
+        designerGridState: [],
+        customDesignedShape: null,
     };
 
     constructor(game: Game, renderer: Renderer) {
@@ -40,13 +51,36 @@ export class CustomCreatorUI {
         this.customGemList = document.getElementById('custom-gem-list')!;
         this.customValidationFeedback = document.getElementById('custom-validation-feedback')!;
         this.btnStartCustomLevel = document.getElementById('btn-start-custom-level') as HTMLButtonElement;
+
+        this.designerModal = document.getElementById('custom-shape-designer-modal')!;
+        this.designerGrid = document.getElementById('designer-grid')!;
+        this.designerPreviewCanvas = document.getElementById('designer-preview-canvas') as HTMLCanvasElement;
+        this.btnFinishDesign = document.getElementById('btn-finish-design') as HTMLButtonElement;
+        this.btnCancelDesign = document.getElementById('btn-cancel-design') as HTMLButtonElement;
         
         this.btnAddCustomGem.addEventListener('click', () => this.handleAddCustomGem());
         this.btnStartCustomLevel.addEventListener('click', () => this.handleStartCustomLevel());
+        this.btnFinishDesign.addEventListener('click', () => this.handleFinishDesign());
+        this.btnCancelDesign.addEventListener('click', () => this.closeDesigner());
     }
 
     public setup() {
-        this.state = { selectedColorKey: null, selectedShapeKey: null, gems: [] };
+        // Check if there's a previous custom level set in the global game state.
+        const hasPreviousCustomLevel = gameState.customGemSet.length > 0 && Object.keys(gameState.customGemDefinitions).length > 0;
+
+        // Restore previous gems if they exist, otherwise start fresh.
+        const initialGems = hasPreviousCustomLevel
+            ? gameState.customGemSet.map(gemName => gameState.customGemDefinitions[gemName]).filter(Boolean) // Filter out undefined if state is inconsistent
+            : [];
+
+        this.state = {
+            selectedColorKey: null,
+            selectedShapeKey: null,
+            gems: initialGems, // Use restored or empty array.
+            designerGridState: Array.from({ length: 4 }, () => Array(4).fill(CellState.EMPTY)),
+            customDesignedShape: null,
+        };
+        
         this.populateSelectors();
         this.updateCustomGemList();
         this.validateCustomSet();
@@ -81,14 +115,144 @@ export class CustomCreatorUI {
             const canvas = document.createElement('canvas');
             div.appendChild(canvas);
             
-            div.onclick = () => {
-                this.state.selectedShapeKey = key;
-                this.customShapeSelector.querySelectorAll('.shape-choice').forEach(el => el.classList.remove('selected'));
-                div.classList.add('selected');
-            };
+            if (key === 'SHAPE_CUSTOM_DESIGN') {
+                div.onclick = () => this.openDesigner();
+            } else {
+                div.onclick = () => {
+                    this.state.selectedShapeKey = key;
+                    this.customShapeSelector.querySelectorAll('.shape-choice').forEach(el => el.classList.remove('selected'));
+                    div.classList.add('selected');
+                };
+            }
             this.customShapeSelector.appendChild(div);
-            setTimeout(() => this.renderer.drawToolbarGem(canvas, value), 0);
+            setTimeout(() => this.renderer.drawToolbarGem(canvas, { ...value, color: COLORS.BLAU }), 0);
         });
+    }
+
+    private openDesigner() {
+        this.designerModal.classList.remove('hidden');
+        this.designerGrid.innerHTML = '';
+        for (let r = 0; r < 4; r++) {
+            for (let c = 0; c < 4; c++) {
+                const cellWrapper = document.createElement('div');
+                cellWrapper.className = 'designer-cell';
+                cellWrapper.dataset.row = r.toString();
+                cellWrapper.dataset.col = c.toString();
+                const canvas = document.createElement('canvas');
+                cellWrapper.appendChild(canvas);
+                cellWrapper.onclick = () => this.handleDesignerCellClick(r, c);
+                this.designerGrid.appendChild(cellWrapper);
+            }
+        }
+        this.updateDesignerGridCanvases();
+        this.updateDesignerPreview();
+    }
+
+    private closeDesigner() {
+        this.designerModal.classList.add('hidden');
+    }
+
+    private handleDesignerCellClick(row: number, col: number) {
+        const currentState = this.state.designerGridState[row][col];
+        // Cycle through: 0 (EMPTY) -> 1 (BLOCK) -> 2 (TL) -> 3 (TR) -> 4 (BR) -> 5 (BL)
+        const nextState = (currentState + 1) % 6;
+        this.state.designerGridState[row][col] = nextState;
+
+        const cellCanvas = this.designerGrid.querySelector<HTMLCanvasElement>(`[data-row='${row}'][data-col='${col}'] canvas`);
+        if (cellCanvas) {
+            this.drawDesignerCell(cellCanvas, nextState);
+        }
+        this.updateDesignerPreview();
+    }
+    
+    private updateDesignerGridCanvases() {
+        for (let r = 0; r < 4; r++) {
+            for (let c = 0; c < 4; c++) {
+                 const cellCanvas = this.designerGrid.querySelector<HTMLCanvasElement>(`[data-row='${r}'][data-col='${c}'] canvas`);
+                 if (cellCanvas) {
+                    this.drawDesignerCell(cellCanvas, this.state.designerGridState[r][c]);
+                 }
+            }
+        }
+    }
+
+    private drawDesignerCell(canvas: HTMLCanvasElement, state: CellState) {
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        const dpr = window.devicePixelRatio || 1;
+        const rect = canvas.getBoundingClientRect();
+        if (rect.width === 0) return;
+
+        canvas.width = rect.width * dpr;
+        canvas.height = rect.height * dpr;
+        ctx.scale(dpr, dpr);
+        ctx.clearRect(0, 0, rect.width, rect.height);
+
+        if (state !== CellState.EMPTY) {
+            ctx.fillStyle = COLORS.BLAU; // Use a consistent color for designing
+            ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+            ctx.lineWidth = 1;
+
+            ctx.beginPath();
+            const path = new Path2D();
+            const w = rect.width, h = rect.height, x = 0, y = 0;
+            
+            switch (state) {
+                case CellState.BLOCK: path.rect(x, y, w, h); break;
+                case CellState.TRIANGLE_TL: path.moveTo(x, y); path.lineTo(x + w, y); path.lineTo(x, y + h); path.closePath(); break;
+                case CellState.TRIANGLE_TR: path.moveTo(x, y); path.lineTo(x + w, y); path.lineTo(x + w, y + h); path.closePath(); break;
+                case CellState.TRIANGLE_BR: path.moveTo(x + w, y); path.lineTo(x + w, y + h); path.lineTo(x, y + h); path.closePath(); break;
+                case CellState.TRIANGLE_BL: path.moveTo(x, y); path.lineTo(x, y + h); path.lineTo(x + w, y + h); path.closePath(); break;
+            }
+            ctx.fill(path);
+            ctx.stroke(path);
+        }
+    }
+
+    private cropPattern(pattern: CellState[][]): CellState[][] {
+        let minRow = pattern.length, maxRow = -1, minCol = pattern[0].length, maxCol = -1;
+        for (let r = 0; r < pattern.length; r++) {
+            for (let c = 0; c < pattern[r].length; c++) {
+                if (pattern[r][c] !== CellState.EMPTY) {
+                    minRow = Math.min(minRow, r);
+                    maxRow = Math.max(maxRow, r);
+                    minCol = Math.min(minCol, c);
+                    maxCol = Math.max(maxCol, c);
+                }
+            }
+        }
+        if (maxRow === -1) { // Empty pattern
+            return [[CellState.EMPTY]];
+        }
+        return pattern.slice(minRow, maxRow + 1).map(row => row.slice(minCol, maxCol + 1));
+    }
+
+    private updateDesignerPreview() {
+        const cropped = this.cropPattern(this.state.designerGridState);
+        this.renderer.drawToolbarGem(this.designerPreviewCanvas, { gridPattern: cropped, color: COLORS.BLAU });
+    }
+    
+    private handleFinishDesign() {
+        const cropped = this.cropPattern(this.state.designerGridState);
+        if (cropped.length === 1 && cropped[0].length === 1 && cropped[0][0] === CellState.EMPTY) {
+            // Don't allow saving an empty shape.
+            return;
+        }
+
+        this.state.customDesignedShape = { gridPattern: cropped };
+        this.state.selectedShapeKey = 'SHAPE_CUSTOM_DESIGN';
+
+        this.customShapeSelector.querySelectorAll('.shape-choice').forEach(el => el.classList.remove('selected'));
+        const customShapeButton = this.customShapeSelector.querySelector<HTMLElement>("[data-shape-key='SHAPE_CUSTOM_DESIGN']");
+        if (customShapeButton) {
+            customShapeButton.classList.add('selected');
+            const canvas = customShapeButton.querySelector('canvas');
+            if (canvas) {
+                this.renderer.drawToolbarGem(canvas, { gridPattern: cropped, color: COLORS.BLAU });
+            }
+        }
+        this.closeDesigner();
     }
     
     private handleAddCustomGem() {
@@ -97,9 +261,14 @@ export class CustomCreatorUI {
             alert(t('customCreator.alert.selectColorAndShape'));
             return;
         }
+
+        const shapeDef = (selectedShapeKey === 'SHAPE_CUSTOM_DESIGN' && this.state.customDesignedShape)
+            ? { ...this.state.customDesignedShape, nameKey: CUSTOM_SHAPES.SHAPE_CUSTOM_DESIGN.nameKey }
+            : CUSTOM_SHAPES[selectedShapeKey as keyof typeof CUSTOM_SHAPES];
+
+        if (!shapeDef || !shapeDef.gridPattern) return;
     
         const colorDef = BASE_COLORS[selectedColorKey as keyof typeof BASE_COLORS];
-        const shapeDef = CUSTOM_SHAPES[selectedShapeKey];
         
         const finalGridPattern = (selectedColorKey === 'SCHWARZ')
             ? shapeDef.gridPattern.map(row => row.map(cell => (cell !== CellState.EMPTY ? CellState.ABSORB : CellState.EMPTY)))
@@ -167,7 +336,7 @@ export class CustomCreatorUI {
             this.btnStartCustomLevel.disabled = true;
         } else {
             this.customValidationFeedback.innerHTML = `<div class="valid">✅ ${t('validation.levelIsValid')}</div>`;
-            this.btnStartCustomLevel.disabled = false;
+            this.btnStartCustomLevel.disabled = this.state.gems.length === 0;
         }
     }
     
