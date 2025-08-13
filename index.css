@@ -1,5 +1,3 @@
-
-
 :root {
     --bg-color: #2c3e50;
     --surface-color: #34495e;
@@ -161,7 +159,7 @@ html, body {
     color: var(--text-color);
     border: none;
     border-radius: 8px;
-    padding: 1rem 2rem;
+    padding: 0.8rem 1.5rem; /* Reverted to flexible padding for variable height */
     font-size: 1.2rem;
     font-weight: 500;
     cursor: pointer;
@@ -170,6 +168,7 @@ html, body {
     min-width: 200px;
     box-shadow: 0 4px 6px rgba(0,0,0,0.2);
     -webkit-tap-highlight-color: transparent;
+    text-align: center; /* Ensures text in multi-line buttons is centered */
 }
 .menu-buttons button:hover {
     background-color: var(--primary-hover);
@@ -191,11 +190,11 @@ html, body {
 }
 .btn-back {
     margin-top: 2rem;
-    background-color: transparent;
-    border: 2px solid var(--border-color);
+    background-color: var(--border-color);
+    border: none;
 }
 .btn-back:hover {
-    background-color: var(--border-color);
+    background-color: var(--surface-color);
 }
 
 #screen-difficulty .subtitle {
@@ -922,11 +921,11 @@ html, body {
 
 .designer-grid-container {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    grid-template-rows: repeat(4, 1fr);
+    /* Use explicit pixel values for tracks to prevent browser rounding errors with 'fr' units */
+    grid-template-columns: repeat(4, 60px);
+    grid-template-rows: repeat(4, 60px);
     gap: 5px;
-    width: 280px;
-    height: 280px;
+    /* Size is now implicitly defined by content, which is more stable. */
     background: var(--bg-color);
     padding: 10px;
     border: 1px solid var(--border-color);
@@ -980,10 +979,20 @@ html, body {
     flex-direction: row;
     gap: 1rem;
     margin-top: 1rem;
+    align-items: center; /* Prevents buttons from stretching to different heights */
 }
+
+/* This is the new, specific override for the modal buttons */
 #custom-shape-designer-modal .menu-buttons button {
     margin: 0;
+    /* Robust height and centering solution for these specific buttons */
+    height: 52px;
+    padding: 0 2rem; /* Horizontal padding only */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
+
 
 /* --- Animations --- */
 @keyframes flash-bg {
@@ -1025,8 +1034,9 @@ html, body {
     }
 
     .designer-grid-container {
-        width: 240px;
-        height: 240px;
+        /* Use explicit pixel values for tracks to prevent browser rounding errors */
+        grid-template-columns: repeat(4, 50px);
+        grid-template-rows: repeat(4, 50px);
     }
 
     .designer-content {
@@ -1036,5 +1046,10 @@ html, body {
 
     #custom-shape-designer-modal .menu-buttons {
         flex-direction: column;
+        width: 100%;
+    }
+
+    #custom-shape-designer-modal .menu-buttons button {
+        width: 100%;
     }
 }

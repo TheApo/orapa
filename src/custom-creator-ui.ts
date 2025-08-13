@@ -179,21 +179,30 @@ export class CustomCreatorUI {
     private drawDesignerCell(canvas: HTMLCanvasElement, state: CellState) {
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
-
+    
         const dpr = window.devicePixelRatio || 1;
         const rect = canvas.getBoundingClientRect();
-        if (rect.width === 0) return;
-
-        canvas.width = rect.width * dpr;
-        canvas.height = rect.height * dpr;
-        ctx.scale(dpr, dpr);
+        if (rect.width === 0 || rect.height === 0) return;
+    
+        const requiredBitmapWidth = Math.round(rect.width * dpr);
+        const requiredBitmapHeight = Math.round(rect.height * dpr);
+    
+        // Only resize the canvas if its bitmap size doesn't match the DOM element size.
+        // This is the crucial check to prevent the feedback loop that causes distortion and "growing" cells.
+        if (canvas.width !== requiredBitmapWidth || canvas.height !== requiredBitmapHeight) {
+            canvas.width = requiredBitmapWidth;
+            canvas.height = requiredBitmapHeight;
+        }
+    
+        // Always reset transform and scale for consistent drawing, then clear.
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         ctx.clearRect(0, 0, rect.width, rect.height);
-
+    
         if (state !== CellState.EMPTY) {
             ctx.fillStyle = COLORS.BLAU; // Use a consistent color for designing
             ctx.strokeStyle = 'rgba(0,0,0,0.4)';
             ctx.lineWidth = 1;
-
+    
             ctx.beginPath();
             const path = new Path2D();
             const w = rect.width, h = rect.height, x = 0, y = 0;
@@ -261,18 +270,28 @@ export class CustomCreatorUI {
             alert(t('customCreator.alert.selectColorAndShape'));
             return;
         }
-
+    
         const shapeDef = (selectedShapeKey === 'SHAPE_CUSTOM_DESIGN' && this.state.customDesignedShape)
             ? { ...this.state.customDesignedShape, nameKey: CUSTOM_SHAPES.SHAPE_CUSTOM_DESIGN.nameKey }
             : CUSTOM_SHAPES[selectedShapeKey as keyof typeof CUSTOM_SHAPES];
-
+    
         if (!shapeDef || !shapeDef.gridPattern) return;
     
         const colorDef = BASE_COLORS[selectedColorKey as keyof typeof BASE_COLORS];
-        
-        const finalGridPattern = (selectedColorKey === 'SCHWARZ')
-            ? shapeDef.gridPattern.map(row => row.map(cell => (cell !== CellState.EMPTY ? CellState.ABSORB : CellState.EMPTY)))
-            : shapeDef.gridPattern;
+    
+        let finalGridPattern;
+        if (selectedColorKey === 'SCHWARZ') {
+            // If color is black, force all solid parts of the shape to be absorbing.
+            finalGridPattern = shapeDef.gridPattern.map(row => 
+                row.map(cell => (cell !== CellState.EMPTY ? CellState.ABSORB : CellState.EMPTY))
+            );
+        } else {
+            // If color is not black, use the shape as is, but ensure any ABSORB cells from the template
+            // (e.g., from the SHAPE_ABSORBER template) are converted to regular BLOCK cells.
+            finalGridPattern = shapeDef.gridPattern.map(row =>
+                row.map(cell => (cell === CellState.ABSORB ? CellState.BLOCK : cell))
+            );
+        }
         
         const gemName = `CUSTOM_${selectedColorKey}_${selectedShapeKey}_${Date.now()}`;
         
