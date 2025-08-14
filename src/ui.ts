@@ -407,7 +407,7 @@ export class UI {
         } else {
             this.endTitle.textContent = t('endScreen.lossTitle');
             this.endTitle.classList.add('loss');
-            this.endStats.textContent = t('endScreen.stats', { count: waveCount });
+            this.endStats.textContent = t('endScreen.statsLoss', { count: waveCount });
             this.endRetryMessage.textContent = t('endScreen.retry');
             this.endSolutionLabel.textContent = t('endScreen.solutionLabel.yourInput');
             playerSolutionToShow = playerGems;
@@ -486,27 +486,46 @@ export class UI {
     }
     
     private _populateIntroRules() {
-        this.introRulesEl.innerHTML = `
-            <h3 data-i18n-key="rules.title"></h3>
-            <p><strong data-i18n-key="rules.objectiveTitle"></strong> <span data-i18n-key="rules.objective"></span></p>
-            <ul>
-                <li>
-                    <span data-i18n-key="rules.item1"></span>
-                    <ul>
-                        <li data-i18n-key="rules.item2"></li>
-                        <li data-i18n-key="rules.item3"></li>
-                    </ul>
-                </li>
-                <li data-i18n-key="rules.item4"></li>
-                <li data-i18n-key="rules.item5"></li>
-                <li data-i18n-key="rules.item6"></li>
-                <li data-i18n-key="rules.item7"></li>
-            </ul>
-            <h4 data-i18n-key="rules.colorMixingTitle"></h4>
-            <p data-i18n-key="rules.colorMixingDesc"></p>
-            <div class="color-mix-container"></div>
-        `;
-        // Manually trigger translation for the newly created elements
+        // Check if the rules have already been populated to avoid resetting state on language change
+        const alreadyPopulated = this.introRulesEl.querySelector('.rules-details');
+    
+        if (!alreadyPopulated) {
+            // First time population, create the structure
+            this.introRulesEl.innerHTML = `
+                <details class="rules-details" open>
+                    <summary class="rules-summary">
+                        <h3 data-i18n-key="rules.title"></h3>
+                    </summary>
+                    <div class="details-content">
+                        <p><strong data-i18n-key="rules.objectiveTitle"></strong> <span data-i18n-key="rules.objective"></span></p>
+                        <ul>
+                            <li>
+                                <span data-i18n-key="rules.item1"></span>
+                                <ul>
+                                    <li data-i18n-key="rules.item2"></li>
+                                    <li data-i18n-key="rules.item3"></li>
+                                </ul>
+                            </li>
+                            <li data-i18n-key="rules.item4"></li>
+                            <li data-i18n-key="rules.item5"></li>
+                            <li data-i18n-key="rules.item6"></li>
+                            <li data-i18n-key="rules.item7"></li>
+                        </ul>
+                    </div>
+                </details>
+                <details class="rules-details">
+                    <summary class="rules-summary">
+                        <h4 data-i18n-key="rules.colorMixingTitle"></h4>
+                    </summary>
+                    <div class="details-content">
+                        <p data-i18n-key="rules.colorMixingDesc"></p>
+                        <div class="color-mix-container"></div>
+                    </div>
+                </details>
+            `;
+        }
+    
+        // Always update text content for language changes
         this.introRulesEl.querySelectorAll<HTMLElement>('[data-i18n-key]').forEach(el => {
             const key = el.dataset.i18nKey!;
             // Use innerHTML to support the <strong> tags in the rule descriptions
@@ -521,19 +540,24 @@ export class UI {
     }
 
     private _populateRulesPanel() {
-        this.rulesPanel.innerHTML = `
-            <h4 data-i18n-key="rules.basicRules"></h4>
-            <ul>
-                <li data-i18n-key="rules.panel.item1"></li>
-                <li data-i18n-key="rules.panel.item2"></li>
-                <li data-i18n-key="rules.panel.item3"></li>
-                <li data-i18n-key="rules.panel.item4"></li>
-                <li data-i18n-key="rules.panel.item5"></li>
-            </ul>
-            <h4 data-i18n-key="rules.colorMixingTitle"></h4>
-            <p data-i18n-key="rules.colorMixingDesc"></p>
-            <div class="color-mix-container"></div>
-        `;
+        const alreadyPopulated = this.rulesPanel.querySelector('h4');
+    
+        if (!alreadyPopulated) {
+            this.rulesPanel.innerHTML = `
+                <h4 data-i18n-key="rules.basicRules"></h4>
+                <ul>
+                    <li data-i18n-key="rules.panel.item1"></li>
+                    <li data-i18n-key="rules.panel.item2"></li>
+                    <li data-i18n-key="rules.panel.item3"></li>
+                    <li data-i18n-key="rules.panel.item4"></li>
+                    <li data-i18n-key="rules.panel.item5"></li>
+                </ul>
+                <h4 data-i18n-key="rules.colorMixingTitle"></h4>
+                <p data-i18n-key="rules.colorMixingDesc"></p>
+                <div class="color-mix-container"></div>
+            `;
+        }
+    
         this.rulesPanel.querySelectorAll<HTMLElement>('[data-i18n-key]').forEach(el => {
              const key = el.dataset.i18nKey!;
              if (key.startsWith('rules.panel.item')) {

@@ -1,4 +1,5 @@
 
+
 export type Language = 'de' | 'en';
 
 const translations = {
@@ -10,6 +11,8 @@ const translations = {
         },
         mainMenu: {
             startGame: "Spiel starten",
+            byline: "von Dirk Aporius und Google Studio AI",
+            basedOn: "basiert auf dem <a href=\"https://boardgamegeek.com/boardgame/424152/orapa-mine\" target=\"_blank\" rel=\"noopener\">Brettspiel</a>",
         },
         difficulty: {
             title: "Schwierigkeitsgrad",
@@ -57,6 +60,7 @@ const translations = {
             winTitle: "Gewonnen!",
             lossTitle: "Verloren!",
             stats: "Du hast die Mine in {{count}} Abfragen gelöst.",
+            statsLoss: "Du hast die Lösung nach {{count}} Abfragen nicht gefunden.",
             retry: "Bitte versuche es erneut.",
             solutionLabel: {
                 correct: "Korrekte Lösung:",
@@ -90,7 +94,7 @@ const translations = {
             item6: "Steine dürfen sich nicht überlappen oder Kante an Kante liegen.",
             item7: "Drücke 'n' für ein neues Level oder 'esc' um zum Menü zurückzukehren.",
             colorMixingTitle: "Farbmischung",
-            colorMixingDesc: "Wenn ein Lichtstrahl mehrere farbige Steine durchquert, mischen sich ihre Farben:",
+            colorMixingDesc: "Ein Lichtstrahl wird von farbigen Steinen abgelenkt und nimmt dabei deren Farbe an. Trifft er auf mehrere Steine, mischen sich die Farben:",
             basicRules: "Spielmethoden",
             panel: {
                 item1: "<strong>Strahl senden:</strong> Klicke auf einen Emitter am Rand, um eine Lichtwelle zu senden. Dies gibt dir Hinweise auf den Pfad und die getroffenen Farben.",
@@ -178,6 +182,8 @@ const translations = {
         },
         mainMenu: {
             startGame: "Start Game",
+            byline: "by Dirk Aporius and Google Studio AI",
+            basedOn: "based on the <a href=\"https://boardgamegeek.com/boardgame/424152/orapa-mine\" target=\"_blank\" rel=\"noopener\">boardgame</a>",
         },
         difficulty: {
             title: "Difficulty",
@@ -225,6 +231,7 @@ const translations = {
             winTitle: "You Win!",
             lossTitle: "You Lose!",
             stats: "You solved the mine in {{count}} queries.",
+            statsLoss: "You did not find the solution after {{count}} queries.",
             retry: "Please try again.",
             solutionLabel: {
                 correct: "Correct Solution:",
@@ -258,7 +265,7 @@ const translations = {
             item6: "Gems cannot overlap or be edge-to-edge.",
             item7: "Press 'n' for a new level or 'esc' to return to the menu.",
             colorMixingTitle: "Color Mixing",
-            colorMixingDesc: "When a light beam passes through multiple colored gems, their colors mix:",
+            colorMixingDesc: "A light beam is deflected by colored gems, taking on their color. If it hits multiple gems, the colors mix:",
             basicRules: "Game Methods",
             panel: {
                 item1: "<strong>Send Ray:</strong> Click an emitter on the edge to send a light wave. This gives clues about the path and colors hit.",

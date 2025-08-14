@@ -136,6 +136,18 @@ html, body {
     margin-bottom: 0.1rem;
 }
 
+.based-on a {
+    color: inherit;
+    text-decoration: underline;
+    text-decoration-color: var(--primary-color);
+    transition: color 0.2s ease, text-decoration-color 0.2s ease;
+}
+
+.based-on a:hover {
+    color: var(--primary-hover);
+    text-decoration-color: var(--primary-hover);
+}
+
 .version-info {
     width: 100%;
     text-align: center;
@@ -233,6 +245,7 @@ html, body {
     border: 1px solid var(--border-color);
     border-radius: 8px;
     max-width: 500px;
+    width: 100%;
     text-align: left;
 }
 #intro-rules p, #intro-rules ul {
@@ -263,6 +276,87 @@ html, body {
     padding-bottom: 0.25rem;
     font-weight: 600;
 }
+
+/* --- Collapsible Rules Section --- */
+.rules-details {
+    margin-top: 1rem;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    transition: background-color 0.2s ease;
+}
+
+#intro-rules > .rules-details:first-child {
+    margin-top: 0;
+    border: none;
+}
+
+.rules-summary {
+    cursor: pointer;
+    list-style: none; /* remove default arrow */
+    padding: 0.75rem 1rem;
+    position: relative;
+    font-weight: 600;
+}
+.rules-summary:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+.rules-summary::-webkit-details-marker {
+    display: none; /* remove default arrow for Chrome/Safari */
+}
+
+.rules-summary h3 {
+    display: inline-block;
+    /* Reset styles from #intro-rules h3 */
+    margin: 0;
+    border: none;
+    padding: 0;
+    font-weight: 600; /* Re-apply font-weight */
+    font-size: 1.15rem; 
+}
+
+.rules-summary h4 {
+    display: inline-block;
+    /* Reset styles from #intro-rules h4 */
+    margin: 0;
+    border: none;
+    padding: 0;
+    font-weight: 600; /* Re-apply font-weight */
+    font-size: 1rem; /* Match other headers in rules */
+}
+
+/* Custom arrow */
+.rules-summary::after {
+    content: '▶';
+    position: absolute;
+    right: 1rem;
+    top: 50%;
+    transform: translateY(-50%) rotate(0deg);
+    transition: transform 0.2s ease-in-out;
+    font-size: 0.8em;
+    color: var(--primary-color);
+}
+
+.rules-details[open] > .rules-summary::after {
+    transform: translateY(-50%) rotate(90deg);
+}
+
+.rules-details .details-content {
+    padding: 0 1rem 1rem 1rem;
+    border-top: 1px solid var(--border-color);
+    animation: fadeInDetails 0.3s ease-out;
+}
+
+@keyframes fadeInDetails {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.details-content p {
+    line-height: 1.6; /* Ensure it matches other p in rules */
+    margin-bottom: 0.5rem;
+}
+
 
 /* --- Custom Level Creator Screen --- */
 .custom-creator-layout {
@@ -343,6 +437,19 @@ html, body {
     background-color: #526f8c;
     box-shadow: 0 0 10px var(--secondary-color);
 }
+
+.shape-choice-add {
+    border-style: dashed;
+    border-color: var(--primary-color);
+}
+.shape-choice-add:hover {
+    border-style: solid;
+    border-color: var(--primary-hover);
+}
+.shape-choice-add.selected {
+    border-style: solid;
+}
+
 
 .add-gem-button {
     width: 100%;

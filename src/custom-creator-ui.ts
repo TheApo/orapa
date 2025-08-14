@@ -11,7 +11,6 @@ type CustomCreatorState = {
     selectedShapeKey: string | null;
     gems: any[];
     designerGridState: CellState[][];
-    customDesignedShape: { gridPattern: CellState[][] } | null;
 };
 
 export class CustomCreatorUI {
@@ -38,8 +37,10 @@ export class CustomCreatorUI {
         selectedShapeKey: null,
         gems: [],
         designerGridState: [],
-        customDesignedShape: null,
     };
+    
+    // UI state that should persist across language changes
+    private customDesignedShape: { gridPattern: CellState[][] } | null = null;
 
     constructor(game: Game, renderer: Renderer) {
         this.game = game;
@@ -78,12 +79,48 @@ export class CustomCreatorUI {
             selectedShapeKey: null,
             gems: initialGems, // Use restored or empty array.
             designerGridState: Array.from({ length: 4 }, () => Array(4).fill(CellState.EMPTY)),
-            customDesignedShape: null,
         };
+        
+        // Don't reset this.customDesignedShape on setup to preserve it across language changes.
         
         this.populateSelectors();
         this.updateCustomGemList();
         this.validateCustomSet();
+    }
+    
+    private drawAddIcon(canvas: HTMLCanvasElement) {
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        const dpr = window.devicePixelRatio || 1;
+        const rect = canvas.getBoundingClientRect();
+        if (rect.width === 0 || rect.height === 0) return;
+
+        if (canvas.width !== Math.round(rect.width * dpr) || canvas.height !== Math.round(rect.height * dpr)) {
+            canvas.width = rect.width * dpr;
+            canvas.height = rect.height * dpr;
+            ctx.scale(dpr, dpr);
+        }
+        
+        ctx.clearRect(0, 0, rect.width, rect.height);
+        
+        ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--primary-color');
+        ctx.lineWidth = 3;
+        ctx.lineCap = 'round';
+        
+        const centerX = rect.width / 2;
+        const centerY = rect.height / 2;
+        const lineLength = Math.min(rect.width, rect.height) * 0.4;
+        
+        ctx.beginPath();
+        ctx.moveTo(centerX - lineLength / 2, centerY);
+        ctx.lineTo(centerX + lineLength / 2, centerY);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(centerX, centerY - lineLength / 2);
+        ctx.lineTo(centerX, centerY + lineLength / 2);
+        ctx.stroke();
     }
     
     private populateSelectors() {
@@ -117,21 +154,54 @@ export class CustomCreatorUI {
             
             if (key === 'SHAPE_CUSTOM_DESIGN') {
                 div.onclick = () => this.openDesigner();
+                // The visual state (icon vs preview) is handled after a delay
+                setTimeout(() => {
+                    if (this.customDesignedShape) {
+                        this.renderer.drawToolbarGem(canvas, { ...this.customDesignedShape, color: COLORS.BLAU });
+                    } else {
+                        div.classList.add('shape-choice-add');
+                        this.drawAddIcon(canvas);
+                    }
+                }, 0);
             } else {
                 div.onclick = () => {
                     this.state.selectedShapeKey = key;
                     this.customShapeSelector.querySelectorAll('.shape-choice').forEach(el => el.classList.remove('selected'));
                     div.classList.add('selected');
                 };
+                 setTimeout(() => this.renderer.drawToolbarGem(canvas, { ...value, color: COLORS.BLAU }), 0);
             }
             this.customShapeSelector.appendChild(div);
-            setTimeout(() => this.renderer.drawToolbarGem(canvas, { ...value, color: COLORS.BLAU }), 0);
         });
     }
 
+    private padPattern(pattern: CellState[][], rows: number, cols: number): CellState[][] {
+        const newPattern = Array.from({ length: rows }, () => Array(cols).fill(CellState.EMPTY));
+        const pRows = pattern.length;
+        const pCols = pattern[0].length;
+        const startRow = Math.floor((rows - pRows) / 2);
+        const startCol = Math.floor((cols - pCols) / 2);
+
+        for (let r = 0; r < pRows; r++) {
+            for (let c = 0; c < pCols; c++) {
+                if (startRow + r < rows && startCol + c < cols) {
+                    newPattern[startRow + r][startCol + c] = pattern[r][c];
+                }
+            }
+        }
+        return newPattern;
+    }
+    
     private openDesigner() {
         this.designerModal.classList.remove('hidden');
         this.designerGrid.innerHTML = '';
+        
+        const patternToLoad = this.customDesignedShape 
+            ? this.padPattern(this.customDesignedShape.gridPattern, 4, 4)
+            : Array.from({ length: 4 }, () => Array(4).fill(CellState.EMPTY));
+        
+        this.state.designerGridState = JSON.parse(JSON.stringify(patternToLoad));
+
         for (let r = 0; r < 4; r++) {
             for (let c = 0; c < 4; c++) {
                 const cellWrapper = document.createElement('div');
@@ -187,14 +257,11 @@ export class CustomCreatorUI {
         const requiredBitmapWidth = Math.round(rect.width * dpr);
         const requiredBitmapHeight = Math.round(rect.height * dpr);
     
-        // Only resize the canvas if its bitmap size doesn't match the DOM element size.
-        // This is the crucial check to prevent the feedback loop that causes distortion and "growing" cells.
         if (canvas.width !== requiredBitmapWidth || canvas.height !== requiredBitmapHeight) {
             canvas.width = requiredBitmapWidth;
             canvas.height = requiredBitmapHeight;
         }
     
-        // Always reset transform and scale for consistent drawing, then clear.
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         ctx.clearRect(0, 0, rect.width, rect.height);
     
@@ -245,22 +312,24 @@ export class CustomCreatorUI {
     private handleFinishDesign() {
         const cropped = this.cropPattern(this.state.designerGridState);
         if (cropped.length === 1 && cropped[0].length === 1 && cropped[0][0] === CellState.EMPTY) {
-            // Don't allow saving an empty shape.
             return;
         }
-
-        this.state.customDesignedShape = { gridPattern: cropped };
-        this.state.selectedShapeKey = 'SHAPE_CUSTOM_DESIGN';
-
-        this.customShapeSelector.querySelectorAll('.shape-choice').forEach(el => el.classList.remove('selected'));
+        
+        this.customDesignedShape = { gridPattern: cropped };
+        
         const customShapeButton = this.customShapeSelector.querySelector<HTMLElement>("[data-shape-key='SHAPE_CUSTOM_DESIGN']");
         if (customShapeButton) {
-            customShapeButton.classList.add('selected');
+            customShapeButton.classList.remove('shape-choice-add');
             const canvas = customShapeButton.querySelector('canvas');
             if (canvas) {
-                this.renderer.drawToolbarGem(canvas, { gridPattern: cropped, color: COLORS.BLAU });
+                this.renderer.drawToolbarGem(canvas, { ...this.customDesignedShape, color: COLORS.BLAU });
             }
+            
+            this.state.selectedShapeKey = 'SHAPE_CUSTOM_DESIGN';
+            this.customShapeSelector.querySelectorAll('.shape-choice').forEach(el => el.classList.remove('selected'));
+            customShapeButton.classList.add('selected');
         }
+        
         this.closeDesigner();
     }
     
@@ -271,8 +340,8 @@ export class CustomCreatorUI {
             return;
         }
     
-        const shapeDef = (selectedShapeKey === 'SHAPE_CUSTOM_DESIGN' && this.state.customDesignedShape)
-            ? { ...this.state.customDesignedShape, nameKey: CUSTOM_SHAPES.SHAPE_CUSTOM_DESIGN.nameKey }
+        const shapeDef = (selectedShapeKey === 'SHAPE_CUSTOM_DESIGN' && this.customDesignedShape)
+            ? { ...this.customDesignedShape, nameKey: CUSTOM_SHAPES.SHAPE_CUSTOM_DESIGN.nameKey }
             : CUSTOM_SHAPES[selectedShapeKey as keyof typeof CUSTOM_SHAPES];
     
         if (!shapeDef || !shapeDef.gridPattern) return;
@@ -281,13 +350,10 @@ export class CustomCreatorUI {
     
         let finalGridPattern;
         if (selectedColorKey === 'SCHWARZ') {
-            // If color is black, force all solid parts of the shape to be absorbing.
             finalGridPattern = shapeDef.gridPattern.map(row => 
                 row.map(cell => (cell !== CellState.EMPTY ? CellState.ABSORB : CellState.EMPTY))
             );
         } else {
-            // If color is not black, use the shape as is, but ensure any ABSORB cells from the template
-            // (e.g., from the SHAPE_ABSORBER template) are converted to regular BLOCK cells.
             finalGridPattern = shapeDef.gridPattern.map(row =>
                 row.map(cell => (cell === CellState.ABSORB ? CellState.BLOCK : cell))
             );
