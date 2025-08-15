@@ -4,6 +4,8 @@
 A **beautiful digital adaptation** of the board game [Orapa Mine](https://boardgamegeek.com/boardgame/424152/orapa-mine), designed for **solo play**.  
 Enjoy the strategic challenge of gem mining, light beams, and puzzle-solving — anytime, anywhere!
 
+Created by Dirk Aporius and Google Studio AI
+
 ---
 
 ## ✨ Features
