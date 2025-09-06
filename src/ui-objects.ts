@@ -51,18 +51,28 @@ export class EmitterButton {
                y >= this.rect.y && y <= this.rect.y + this.rect.height;
     }
 
+    private createRoundRectPath(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number) {
+        ctx.beginPath();
+        if (width < 2 * radius) radius = width / 2;
+        if (height < 2 * radius) radius = height / 2;
+        ctx.moveTo(x + radius, y);
+        ctx.arcTo(x + width, y, x + width, y + height, radius);
+        ctx.arcTo(x + width, y + height, x, y + height, radius);
+        ctx.arcTo(x, y + height, x, y, radius);
+        ctx.arcTo(x, y, x + width, y, radius);
+        ctx.closePath();
+    }
+
     draw(ctx: CanvasRenderingContext2D, isSelected: boolean = false) {
         ctx.save();
 
         // 1. Determine BASE background color
         const bgColor = this.isUsed && this.usedColor ? this.usedColor : '#4a627a';
 
-        // 2. Draw the rounded rectangle background
-        ctx.beginPath();
-        const path = new Path2D();
-        path.roundRect(this.rect.x, this.rect.y, this.rect.width, this.rect.height, this.cornerRadius);
+        // 2. Draw the rounded rectangle background (cross-browser compatible)
+        this.createRoundRectPath(ctx, this.rect.x, this.rect.y, this.rect.width, this.rect.height, this.cornerRadius);
         ctx.fillStyle = bgColor;
-        ctx.fill(path);
+        ctx.fill();
         
         // 3. Draw Border/Outline for different states
         // Selection has priority over focus visually
@@ -71,13 +81,13 @@ export class EmitterButton {
             ctx.lineWidth = 3;
             ctx.shadowColor = '#f1c40f';
             ctx.shadowBlur = 8;
-            ctx.stroke(path);
+            ctx.stroke();
             ctx.shadowColor = 'transparent'; // Reset shadow for text
             ctx.shadowBlur = 0;
         } else if (this.state === 'focused') {
             ctx.strokeStyle = '#3498db'; // --primary-color
             ctx.lineWidth = 2;
-            ctx.stroke(path);
+            ctx.stroke();
         }
 
         // 4. Determine text color

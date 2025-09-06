@@ -1,5 +1,6 @@
 
 
+
 import { Game } from './game';
 import { UI } from './ui';
 import { Renderer } from './renderer';
@@ -144,7 +145,7 @@ export class InputHandler {
         const toolbarGemEl = target.closest('.toolbar-gem:not(.placed)');
         const isOverCanvas = target.closest('#gem-canvas');
     
-        if (e instanceof TouchEvent && (isOverCanvas || toolbarGemEl)) {
+        if ('touches' in e && (isOverCanvas || toolbarGemEl)) {
             e.preventDefault();
         }
         
@@ -202,7 +203,7 @@ export class InputHandler {
         const { clientX, clientY } = coords;
     
         if (this.dragStartInfo) {
-            if (e instanceof TouchEvent) e.preventDefault();
+            if ('touches' in e) e.preventDefault();
             
             const dx = clientX - this.dragStartInfo.startX;
             const dy = clientY - this.dragStartInfo.startY;
