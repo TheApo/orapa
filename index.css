@@ -551,23 +551,22 @@ html, body {
 
 /* --- Game Screen --- */
 #screen-game {
-    /* Now uses natural flexbox flow instead of absolute positioning for controls */
     padding: 0;
     background: var(--surface-color);
-    justify-content: flex-start; /* Let game-container grow and push controls down */
+    justify-content: flex-start;
+    overflow: hidden; /* Prevent this container from scrolling */
 }
 
 #game-container {
-    flex-grow: 1; /* Make it fill the available vertical space */
-    width: 100%;  /* And full width */
+    flex-grow: 1;
+    width: 100%;
     display: flex;
-    align-items: center; /* Center the board vertically in this container */
-    justify-content: center; /* Center the board horizontally */
-    position: relative; /* For absolutely positioned children like canvases */
+    align-items: center;
+    justify-content: center;
+    position: relative;
     padding: 1rem;
-    /* padding-bottom removed to allow dynamic sizing */
-    overflow: hidden;
-    min-height: 0; /* Important for flex-grow in a flex column */
+    overflow-y: auto; /* Allow THIS container to scroll vertically */
+    min-height: 350px;
 }
 
 #game-board-wrapper {
