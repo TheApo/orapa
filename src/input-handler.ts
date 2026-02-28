@@ -26,6 +26,7 @@ export class InputHandler {
     // DOM Elements
     private gemCanvas: HTMLCanvasElement;
     private logList: HTMLElement;
+    private sidebarLogList: HTMLElement;
 
     // Interaction State
     private dragStartInfo: { item: DragInfo | null, startX: number, startY: number } | null = null;
@@ -45,6 +46,7 @@ export class InputHandler {
 
         this.gemCanvas = document.getElementById('gem-canvas') as HTMLCanvasElement;
         this.logList = document.getElementById('log-list') as HTMLElement;
+        this.sidebarLogList = document.getElementById('sidebar-log-list') as HTMLElement;
 
         this.bindEvents();
     }
@@ -58,6 +60,7 @@ export class InputHandler {
         document.addEventListener('click', (e) => this.handleGlobalClick(e));
         
         this.logList.addEventListener('click', (e) => this.handleLogClick(e));
+        this.sidebarLogList.addEventListener('click', (e) => this.handleLogClick(e));
 
         // Canvas specific events
         this.gemCanvas.addEventListener('keydown', (e) => this.handleCanvasKeyDown(e));
@@ -86,7 +89,7 @@ export class InputHandler {
     private handleGlobalClick(e: MouseEvent) {
         if (!gameState.selectedLogEntryId) return;
         const target = e.target as HTMLElement;
-        const isInteractive = target.closest('#gem-canvas') || target.closest('#log-list li') || target.closest('.preview-toggle-wrapper');
+        const isInteractive = target.closest('#gem-canvas') || target.closest('#log-list li') || target.closest('#sidebar-log-list li') || target.closest('.preview-toggle-wrapper');
         if (!isInteractive) {
             this.game.setSelectedLogEntry(null);
         }
@@ -317,6 +320,10 @@ export class InputHandler {
                     this.game.rotatePlayerGem(clickedGem.id);
                 } else {
                     this.game.setSelectedLogEntry(null);
+                    const gridCoords = this.renderer._canvasToGridCoords(x, y);
+                    if (gridCoords.x >= 0 && gridCoords.x < GRID_WIDTH && gridCoords.y >= 0 && gridCoords.y < GRID_HEIGHT && !clickedGem) {
+                        this.game.toggleSolvedCell(gridCoords.x, gridCoords.y);
+                    }
                 }
             }
         } else { // QUERY mode

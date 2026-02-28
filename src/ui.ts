@@ -7,6 +7,7 @@ import { t, setLanguage, getLanguage, onLanguageChange, Language } from './i18n'
 import { Renderer } from './renderer';
 import { InputHandler } from './input-handler';
 import { CustomCreatorUI } from './custom-creator-ui';
+import { getEmitterDisplayLabel, getCellDisplayLabel } from './grid';
 
 
 export class UI {
@@ -40,6 +41,13 @@ export class UI {
     rulesPanel!: HTMLElement;
     modeWaveBtn!: HTMLButtonElement;
     modeQueryBtn!: HTMLButtonElement;
+    rotateBoardBtn!: HTMLButtonElement;
+    boardWrapper!: HTMLElement;
+    
+    // Sidebar Elements (wide-screen)
+    rulesSidebar!: HTMLElement;
+    logSidebar!: HTMLElement;
+    sidebarLogList!: HTMLElement;
     
     // End Screen Elements
     endTitle!: HTMLElement;
@@ -95,6 +103,12 @@ export class UI {
         this.previewToggle = document.getElementById('preview-toggle') as HTMLInputElement;
         this.modeWaveBtn = document.getElementById('mode-wave-btn') as HTMLButtonElement;
         this.modeQueryBtn = document.getElementById('mode-query-btn') as HTMLButtonElement;
+        this.rotateBoardBtn = document.getElementById('rotate-board-btn') as HTMLButtonElement;
+        this.boardWrapper = document.getElementById('game-board-wrapper')!;
+        
+        this.rulesSidebar = document.getElementById('rules-sidebar')!;
+        this.logSidebar = document.getElementById('log-sidebar')!;
+        this.sidebarLogList = document.getElementById('sidebar-log-list')!;
         
         this.endTitle = document.getElementById('end-title')!;
         this.endRating = document.getElementById('end-rating') as HTMLElement;
@@ -129,6 +143,7 @@ export class UI {
         this.previewToggle.addEventListener('change', () => this.game.togglePlayerPathPreview());
         this.modeWaveBtn.addEventListener('click', () => this.game.setInteractionMode(InteractionMode.WAVE));
         this.modeQueryBtn.addEventListener('click', () => this.game.setInteractionMode(InteractionMode.QUERY));
+        this.rotateBoardBtn.addEventListener('click', () => this.toggleBoardOrientation());
         
         document.addEventListener('keydown', (e) => {
             if (e.key === 'n' && (gameState.status === GameStatus.PLAYING || gameState.status === GameStatus.GAME_OVER)) {
@@ -142,6 +157,7 @@ export class UI {
             if (gameState.status === GameStatus.PLAYING) {
                 if (e.key === 'd') this.game.toggleDebugMode();
                 if (e.key === 'f') this.game.togglePlayerPathPreview();
+                if (e.key === 'r') this.toggleBoardOrientation();
             }
         });
 
@@ -174,7 +190,8 @@ export class UI {
         }
         if (gameState.status === GameStatus.PLAYING) {
             this._populateRulesPanel();
-            this.updateToolbar(); // Re-creates tooltips
+            this._populateRulesSidebar();
+            this.updateToolbar();
             this.updateLogTabCounter();
             this.redrawAll();
         }
@@ -182,11 +199,13 @@ export class UI {
     
     setupGameUI() {
         this._populateRulesPanel();
+        this._populateRulesSidebar();
         this.switchTab('actions');
         this.updateInteractionModeUI(gameState.interactionMode);
         this.renderer.setupEmitters();
         this.updateToolbar();
         this.logList.innerHTML = '';
+        this.sidebarLogList.innerHTML = '';
         this.updateLogTabCounter();
         this.renderer.clearPath();
         this.game.updateSolutionButtonState();
@@ -200,6 +219,9 @@ export class UI {
         
         Object.values(this.screens).forEach(s => s.classList.add('hidden'));
         this.screens[screenName].classList.remove('hidden');
+
+        const app = document.getElementById('app')!;
+        app.classList.toggle('game-active', screenName === 'game');
 
         if (screenName === 'game') {
             const gemCanvas = document.getElementById('gem-canvas');
@@ -301,7 +323,9 @@ export class UI {
         if (logEntry.type === InteractionMode.WAVE) {
             this.renderer.updateEmitterFromLog(logEntry);
             const { result } = logEntry;
-            const resultText = `${logEntry.id} ➔ ${result.exitId}`;
+            const startLabel = getEmitterDisplayLabel(logEntry.id);
+            const exitLabel = getEmitterDisplayLabel(result.exitId);
+            const resultText = `${startLabel} ➔ ${exitLabel}`;
             const resultColor = this.renderer.getPathColor(result);
             const colorName = this.getPathColorName(result);
             li.innerHTML = `<span>${resultText}</span><div class="log-entry-result"><span class="log-color-name">${colorName}</span><div class="log-color-box" style="background-color: ${resultColor};"></div></div>`;
@@ -310,7 +334,7 @@ export class UI {
             const { coords, result } = logEntry;
             const resultColor = result.colorHex || 'transparent';
             const colorName = result.colorNameKey ? t(result.colorNameKey) : t('log.empty');
-            const queryText = t('log.query', { x: coords.x + 1, y: coords.y + 1 });
+            const queryText = t('log.query', { cell: getCellDisplayLabel(coords.x, coords.y) });
             const boxStyle = `background-color: ${resultColor};` + 
                              (this.renderer.isTransparentColor(resultColor) ? 'border-color: #a4d4e4;' : '');
     
@@ -318,6 +342,10 @@ export class UI {
         }
         
         this.logList.prepend(li);
+        
+        const sidebarLi = li.cloneNode(true) as HTMLElement;
+        this.sidebarLogList.prepend(sidebarLi);
+        
         this.updateLogTabCounter();
     }
 
@@ -419,19 +447,27 @@ export class UI {
         });
     }
 
+    public toggleBoardOrientation() {
+        gameState.boardOrientation = gameState.boardOrientation === 'landscape' ? 'portrait' : 'landscape';
+        this.boardWrapper.classList.toggle('portrait', gameState.boardOrientation === 'portrait');
+        this.renderer.handleResize();
+    }
+
     public updatePreviewToggleState(isChecked: boolean) {
         this.previewToggle.checked = isChecked;
     }
 
     updateLogHighlight() {
-        this.logList.querySelectorAll('li').forEach(li => {
-            const htmlLi = li as HTMLLIElement;
-            if (htmlLi.dataset.logId === gameState.selectedLogEntryId) {
-                htmlLi.classList.add('selected');
-                htmlLi.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-            } else {
-                htmlLi.classList.remove('selected');
-            }
+        [this.logList, this.sidebarLogList].forEach(list => {
+            list.querySelectorAll('li').forEach(li => {
+                const htmlLi = li as HTMLLIElement;
+                if (htmlLi.dataset.logId === gameState.selectedLogEntryId) {
+                    htmlLi.classList.add('selected');
+                    htmlLi.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                } else {
+                    htmlLi.classList.remove('selected');
+                }
+            });
         });
     }
 
@@ -536,6 +572,38 @@ export class UI {
             }
         });
         const container = this.introRulesEl.querySelector('.color-mix-container') as HTMLElement;
+        this.populateColorMixColumns(container);
+    }
+
+    private _populateRulesSidebar() {
+        const alreadyPopulated = this.rulesSidebar.querySelector('h4');
+    
+        if (!alreadyPopulated) {
+            this.rulesSidebar.innerHTML = `
+                <h4 data-i18n-key="rules.basicRules"></h4>
+                <ul>
+                    <li data-i18n-key="rules.panel.item1"></li>
+                    <li data-i18n-key="rules.panel.item2"></li>
+                    <li data-i18n-key="rules.panel.item3"></li>
+                    <li data-i18n-key="rules.panel.item4"></li>
+                    <li data-i18n-key="rules.panel.item5"></li>
+                </ul>
+                <h4 data-i18n-key="rules.colorMixingTitle"></h4>
+                <p data-i18n-key="rules.colorMixingDesc"></p>
+                <div class="color-mix-container"></div>
+            `;
+        }
+    
+        this.rulesSidebar.querySelectorAll<HTMLElement>('[data-i18n-key]').forEach(el => {
+             const key = el.dataset.i18nKey!;
+             if (key.startsWith('rules.panel.item')) {
+                 el.innerHTML = t(key);
+             } else {
+                 el.textContent = t(key);
+             }
+        });
+    
+        const container = this.rulesSidebar.querySelector('.color-mix-container') as HTMLElement;
         this.populateColorMixColumns(container);
     }
 

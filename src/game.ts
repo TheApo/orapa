@@ -86,6 +86,7 @@ export class Game {
         gameState.activePlayerPath = null;
         gameState.activePlayerResult = null;
         gameState.permanentQueryResults = [];
+        gameState.solvedCells = new Set();
         
         this.ui.setupGameUI();
         this.ui.showScreen('game');
@@ -366,6 +367,16 @@ export class Game {
         return this._isPlacementValid(gemToTest, gameState.playerGems);
     }
     
+    public toggleSolvedCell(x: number, y: number) {
+        const key = `${y},${x}`;
+        if (gameState.solvedCells.has(key)) {
+            gameState.solvedCells.delete(key);
+        } else {
+            gameState.solvedCells.add(key);
+        }
+        this.ui.redrawAll();
+    }
+
     public setInteractionMode(mode: InteractionMode) {
         if (gameState.interactionMode !== mode) {
             gameState.interactionMode = mode;
