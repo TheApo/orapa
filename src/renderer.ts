@@ -3,9 +3,9 @@
 
 
 import { Game } from './game';
-import { gameState, Gem, LogEntry, InteractionMode, WaveLog } from './state';
+import { gameState, Gem, LogEntry, InteractionMode, WaveLog, BoardOrientation } from './state';
 import { GEMS, COLORS, COLOR_MIXING, BASE_COLORS, COLOR_NAME_KEYS } from './constants';
-import { CellState, GRID_WIDTH, GRID_HEIGHT } from './grid';
+import { CellState, GRID_WIDTH, GRID_HEIGHT, getEmitterDisplayLabel } from './grid';
 import { EmitterButton } from './ui-objects';
 import { t } from './i18n';
 import { InputHandler } from './input-handler';
@@ -53,12 +53,24 @@ export class Renderer {
         this.inputHandler = handler;
     }
 
+    private get isPortrait(): boolean {
+        return gameState.boardOrientation === 'portrait';
+    }
+
+    private get visualGridWidth(): number {
+        return this.isPortrait ? GRID_HEIGHT : GRID_WIDTH;
+    }
+
+    private get visualGridHeight(): number {
+        return this.isPortrait ? GRID_WIDTH : GRID_HEIGHT;
+    }
+
     public handleResize() {
         const wrapperRect = this.boardWrapper.getBoundingClientRect();
         if (wrapperRect.width === 0 || wrapperRect.height === 0) return;
     
-        const totalGridCols = GRID_WIDTH + 2;
-        const totalGridRows = GRID_HEIGHT + 2;
+        const totalGridCols = this.visualGridWidth + 2;
+        const totalGridRows = this.visualGridHeight + 2;
     
         this.cellWidth = (wrapperRect.width - (totalGridCols - 1) * this.gap) / totalGridCols;
         this.cellHeight = (wrapperRect.height - (totalGridRows - 1) * this.gap) / totalGridRows;
@@ -72,17 +84,17 @@ export class Renderer {
             canvas.getContext('2d')!.scale(dpr, dpr);
         });
         
-        this.emitters.forEach(emitter => emitter.updateRect(this.cellWidth, this.cellHeight, this.gap));
+        this.emitters.forEach(emitter => emitter.updateRect(this.cellWidth, this.cellHeight, this.gap, gameState.boardOrientation));
 
         this.redrawAll();
     }
     
     public setupEmitters() {
         this.emitters = [];
-        for (let i = 0; i < GRID_WIDTH; i++) this.emitters.push(new EmitterButton(`T${i + 1}`, `T${i + 1}`));
-        for (let i = 0; i < GRID_WIDTH; i++) this.emitters.push(new EmitterButton(`B${i + 1}`, `B${i + 1}`));
-        for (let i = 0; i < GRID_HEIGHT; i++) this.emitters.push(new EmitterButton(`L${i + 1}`, `L${i + 1}`));
-        for (let i = 0; i < GRID_HEIGHT; i++) this.emitters.push(new EmitterButton(`R${i + 1}`, `R${i + 1}`));
+        for (let i = 0; i < GRID_WIDTH; i++) this.emitters.push(new EmitterButton(`T${i + 1}`, getEmitterDisplayLabel(`T${i + 1}`)));
+        for (let i = 0; i < GRID_WIDTH; i++) this.emitters.push(new EmitterButton(`B${i + 1}`, getEmitterDisplayLabel(`B${i + 1}`)));
+        for (let i = 0; i < GRID_HEIGHT; i++) this.emitters.push(new EmitterButton(`L${i + 1}`, getEmitterDisplayLabel(`L${i + 1}`)));
+        for (let i = 0; i < GRID_HEIGHT; i++) this.emitters.push(new EmitterButton(`R${i + 1}`, getEmitterDisplayLabel(`R${i + 1}`)));
     }
     
     public updateEmitterFromLog(logEntry: WaveLog) {
@@ -110,6 +122,7 @@ export class Renderer {
 
         // --- Main Canvas (gemCtx) Drawing Order ---
         this._drawBoardBackgroundAndGrid(this.gemCtx);
+        this._drawSolvedCells(this.gemCtx);
         this._drawPermanentQueryFills(this.gemCtx);
         if (gameState.debugMode) this.drawDebugSolution(this.gemCtx);
         this.drawPlayerGems(this.gemCtx);
@@ -173,38 +186,68 @@ export class Renderer {
         
         const surfaceColor = getComputedStyle(document.documentElement).getPropertyValue('--surface-color');
         const borderColor = getComputedStyle(document.documentElement).getPropertyValue('--border-color');
+        const vw = this.visualGridWidth;
+        const vh = this.visualGridHeight;
         
         ctx.fillStyle = surfaceColor;
         ctx.fillRect(0, 0, ctx.canvas.width / (window.devicePixelRatio||1), ctx.canvas.height / (window.devicePixelRatio||1));
         
         ctx.fillStyle = borderColor;
         ctx.fillRect(this.cellWidth + this.gap/2, this.cellHeight + this.gap/2, 
-                     (GRID_WIDTH) * this.cellWidth + (GRID_WIDTH + 1) * this.gap, 
-                     (GRID_HEIGHT) * this.cellHeight + (GRID_HEIGHT + 1) * this.gap);
+                     vw * this.cellWidth + (vw + 1) * this.gap, 
+                     vh * this.cellHeight + (vh + 1) * this.gap);
 
         ctx.fillStyle = surfaceColor;
         ctx.fillRect(this.cellWidth + this.gap, this.cellHeight + this.gap, 
-            (GRID_WIDTH) * this.cellWidth + (GRID_WIDTH - 1) * this.gap, 
-            (GRID_HEIGHT) * this.cellHeight + (GRID_HEIGHT - 1) * this.gap);
+            vw * this.cellWidth + (vw - 1) * this.gap, 
+            vh * this.cellHeight + (vh - 1) * this.gap);
 
         ctx.strokeStyle = borderColor;
         ctx.lineWidth = this.gap;
         ctx.beginPath();
-        for (let i = 1; i < GRID_WIDTH; i++) {
+        for (let i = 1; i < vw; i++) {
             const x = (i+1) * (this.cellWidth + this.gap) - this.gap/2;
             ctx.moveTo(x, this.cellHeight + this.gap);
-            ctx.lineTo(x, (GRID_HEIGHT+1) * (this.cellHeight + this.gap) );
+            ctx.lineTo(x, (vh+1) * (this.cellHeight + this.gap) );
         }
-        for (let i = 1; i < GRID_HEIGHT; i++) {
+        for (let i = 1; i < vh; i++) {
             const y = (i+1) * (this.cellHeight + this.gap) - this.gap/2;
             ctx.moveTo(this.cellWidth + this.gap, y);
-            ctx.lineTo((GRID_WIDTH+1) * (this.cellWidth + this.gap), y);
+            ctx.lineTo((vw+1) * (this.cellWidth + this.gap), y);
         }
         ctx.stroke();
         
         ctx.restore();
     }
     
+    private _drawSolvedCells(ctx: CanvasRenderingContext2D) {
+        if (gameState.solvedCells.size === 0) return;
+
+        ctx.save();
+        for (const key of gameState.solvedCells) {
+            const [yStr, xStr] = key.split(',');
+            const gridX = parseInt(xStr);
+            const gridY = parseInt(yStr);
+            const canvasCoords = this._gridToCanvasCoords(gridX, gridY);
+
+            ctx.fillStyle = 'rgba(127, 140, 141, 0.2)';
+            ctx.fillRect(canvasCoords.x, canvasCoords.y, this.cellWidth, this.cellHeight);
+
+            const cx = canvasCoords.x + this.cellWidth / 2;
+            const cy = canvasCoords.y + this.cellHeight / 2;
+            const markSize = Math.min(this.cellWidth, this.cellHeight) * 0.2;
+            ctx.strokeStyle = 'rgba(127, 140, 141, 0.5)';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(cx - markSize, cy - markSize);
+            ctx.lineTo(cx + markSize, cy + markSize);
+            ctx.moveTo(cx + markSize, cy - markSize);
+            ctx.lineTo(cx - markSize, cy + markSize);
+            ctx.stroke();
+        }
+        ctx.restore();
+    }
+
     private _drawPermanentQueryFills(ctx: CanvasRenderingContext2D) {
         if (gameState.permanentQueryResults.length === 0) return;
         
@@ -385,7 +428,12 @@ export class Renderer {
         const stepX = this.cellWidth + this.gap;
         const stepY = this.cellHeight + this.gap;
 
-        const p2c = (p: {x: number, y: number}) => ({ x: gridStartX + p.x * stepX, y: gridStartY + p.y * stepY });
+        const p2c = (p: {x: number, y: number}) => {
+            if (this.isPortrait) {
+                return { x: gridStartX + (GRID_HEIGHT - p.y) * stepX, y: gridStartY + p.x * stepY };
+            }
+            return { x: gridStartX + p.x * stepX, y: gridStartY + p.y * stepY };
+        };
         
         ctx.moveTo(p2c(path[0]).x, p2c(path[0]).y);
         for (let i = 1; i < path.length; i++) {
@@ -414,6 +462,12 @@ export class Renderer {
     }
 
     public _gridToCanvasCoords(gridX: number, gridY: number): { x: number; y: number } {
+        if (this.isPortrait) {
+            return {
+                x: (GRID_HEIGHT - gridY) * (this.cellWidth + this.gap),
+                y: (gridX + 1) * (this.cellHeight + this.gap),
+            };
+        }
         return {
             x: (gridX + 1) * (this.cellWidth + this.gap),
             y: (gridY + 1) * (this.cellHeight + this.gap),
@@ -421,10 +475,12 @@ export class Renderer {
     }
 
     public _canvasToGridCoords(canvasX: number, canvasY: number): { x: number; y: number } {
-        return {
-            x: Math.floor(canvasX / (this.cellWidth + this.gap)) - 1,
-            y: Math.floor(canvasY / (this.cellHeight + this.gap)) - 1,
+        const vx = Math.floor(canvasX / (this.cellWidth + this.gap)) - 1;
+        const vy = Math.floor(canvasY / (this.cellHeight + this.gap)) - 1;
+        if (this.isPortrait) {
+            return { x: vy, y: GRID_HEIGHT - 1 - vx };
         }
+        return { x: vx, y: vy };
     }
     
     public drawToolbarGem(canvas: HTMLCanvasElement, gemDef: any) {
@@ -508,9 +564,11 @@ export class Renderer {
         if (!contextEmitter) return;
 
         const pathColorName = this.ui.getPathColorName(selectedLog.result);
+        const startLabel = getEmitterDisplayLabel(selectedLog.id);
+        const exitLabel = getEmitterDisplayLabel(selectedLog.result.exitId);
         const text = (contextEmitterId === selectedLog.id)
-            ? `${selectedLog.id} ➔ ${pathColorName} ➔ ${selectedLog.result.exitId}`
-            : `${selectedLog.result.exitId} ➔ ${pathColorName} ➔ ${selectedLog.id}`;
+            ? `${startLabel} ➔ ${pathColorName} ➔ ${exitLabel}`
+            : `${exitLabel} ➔ ${pathColorName} ➔ ${startLabel}`;
     
         this.drawTooltip(ctx, text, contextEmitter.rect);
     }

@@ -146,7 +146,7 @@ const translations = {
             absorbed: "Absorbiert",
             noColor: "Keine Farbe",
             unknownMix: "Unbekannte Mischung",
-            query: "Abfrage ({{x}},{{y}})",
+            query: "Abfrage {{cell}}",
             empty: "Leer",
         },
         validation: {
@@ -317,7 +317,7 @@ const translations = {
             absorbed: "Absorbed",
             noColor: "No Color",
             unknownMix: "Unknown Mix",
-            query: "Query ({{x}},{{y}})",
+            query: "Query {{cell}}",
             empty: "Empty",
         },
         validation: {

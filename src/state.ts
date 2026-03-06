@@ -51,10 +51,13 @@ export type PermanentQueryResult = {
     result: { colorNameKey: string | null; colorHex: string | null; };
 }
 
+export type BoardOrientation = 'landscape' | 'portrait';
+
 export interface GameState {
     status: GameStatus;
     difficulty: string | null;
     interactionMode: InteractionMode;
+    boardOrientation: BoardOrientation;
     secretGems: Gem[];
     playerGems: Gem[];
     log: LogEntry[];
@@ -62,11 +65,11 @@ export interface GameState {
     debugMode: boolean;
     showPlayerPathPreview: boolean;
     selectedLogEntryId: string | null;
-    previewSourceEmitterId: string | null; // ID of the emitter to use as the live preview source
-    activePlayerPath: {x: number, y: number}[] | null; // Live calculated path for the player
-    activePlayerResult: any | null; // Live calculated result for the player
-    permanentQueryResults: PermanentQueryResult[]; // Persistently store all query results
-    // For custom levels
+    previewSourceEmitterId: string | null;
+    activePlayerPath: {x: number, y: number}[] | null;
+    activePlayerResult: any | null;
+    permanentQueryResults: PermanentQueryResult[];
+    solvedCells: Set<string>;
     customGemSet: string[];
     customGemDefinitions: { [key: string]: any };
 }
@@ -75,6 +78,7 @@ export const gameState: GameState = {
     status: GameStatus.MAIN_MENU,
     difficulty: null,
     interactionMode: InteractionMode.WAVE,
+    boardOrientation: 'landscape',
     secretGems: [],
     playerGems: [],
     log: [],
@@ -86,6 +90,7 @@ export const gameState: GameState = {
     activePlayerPath: null,
     activePlayerResult: null,
     permanentQueryResults: [],
+    solvedCells: new Set(),
     customGemSet: [],
     customGemDefinitions: {},
 };

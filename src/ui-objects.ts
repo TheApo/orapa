@@ -1,5 +1,6 @@
 
 import { CellState, GRID_WIDTH, GRID_HEIGHT } from './grid';
+import { BoardOrientation } from './state';
 
 export type EmitterState = 'normal' | 'focused';
 
@@ -9,8 +10,8 @@ export type EmitterState = 'normal' | 'focused';
 export class EmitterButton {
     id: string;
     rect: { x: number; y: number; width: number; height: number };
-    state: EmitterState = 'normal'; // For highlight/focus states
-    isUsed: boolean = false; // For persistent used state
+    state: EmitterState = 'normal';
+    isUsed: boolean = false;
     label: string;
     usedColor: string | null = null;
     private cornerRadius = 4;
@@ -21,28 +22,53 @@ export class EmitterButton {
         this.rect = { x: 0, y: 0, width: 0, height: 0 };
     }
 
-    updateRect(cellWidth: number, cellHeight: number, gap: number) {
+    updateRect(cellWidth: number, cellHeight: number, gap: number, orientation: BoardOrientation = 'landscape') {
         this.rect.width = cellWidth;
         this.rect.height = cellHeight;
         const idNum = parseInt(this.id.substring(1)) - 1;
-        
-        switch (this.id[0]) {
-            case 'T':
-                this.rect.x = (idNum + 1) * (cellWidth + gap);
-                this.rect.y = 0;
-                break;
-            case 'B':
-                this.rect.x = (idNum + 1) * (cellWidth + gap);
-                this.rect.y = (GRID_HEIGHT + 1) * (cellHeight + gap);
-                break;
-            case 'L':
-                this.rect.x = 0;
-                this.rect.y = (idNum + 1) * (cellHeight + gap);
-                break;
-            case 'R':
-                this.rect.x = (GRID_WIDTH + 1) * (cellWidth + gap);
-                this.rect.y = (idNum + 1) * (cellHeight + gap);
-                break;
+        const side = this.id[0];
+
+        if (orientation === 'landscape') {
+            switch (side) {
+                case 'T':
+                    this.rect.x = (idNum + 1) * (cellWidth + gap);
+                    this.rect.y = 0;
+                    break;
+                case 'B':
+                    this.rect.x = (idNum + 1) * (cellWidth + gap);
+                    this.rect.y = (GRID_HEIGHT + 1) * (cellHeight + gap);
+                    break;
+                case 'L':
+                    this.rect.x = 0;
+                    this.rect.y = (idNum + 1) * (cellHeight + gap);
+                    break;
+                case 'R':
+                    this.rect.x = (GRID_WIDTH + 1) * (cellWidth + gap);
+                    this.rect.y = (idNum + 1) * (cellHeight + gap);
+                    break;
+            }
+        } else {
+            // Portrait: 90° CW rotation of the board
+            // Visual grid: GRID_HEIGHT cols × GRID_WIDTH rows
+            const vw = GRID_HEIGHT; // visual grid width (columns)
+            switch (side) {
+                case 'L': // landscape left → portrait top (reversed order)
+                    this.rect.x = (vw - idNum) * (cellWidth + gap);
+                    this.rect.y = 0;
+                    break;
+                case 'T': // landscape top → portrait right
+                    this.rect.x = (vw + 1) * (cellWidth + gap);
+                    this.rect.y = (idNum + 1) * (cellHeight + gap);
+                    break;
+                case 'R': // landscape right → portrait bottom (reversed order)
+                    this.rect.x = (vw - idNum) * (cellWidth + gap);
+                    this.rect.y = (GRID_WIDTH + 1) * (cellHeight + gap);
+                    break;
+                case 'B': // landscape bottom → portrait left
+                    this.rect.x = 0;
+                    this.rect.y = (idNum + 1) * (cellHeight + gap);
+                    break;
+            }
         }
     }
 
