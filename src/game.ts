@@ -86,7 +86,8 @@ export class Game {
         gameState.activePlayerPath = null;
         gameState.activePlayerResult = null;
         gameState.permanentQueryResults = [];
-        
+        gameState.blockedCells = [];
+
         this.ui.setupGameUI();
         this.ui.showScreen('game');
         this.ui.redrawAll(); // Initial draw
@@ -366,6 +367,32 @@ export class Game {
         return this._isPlacementValid(gemToTest, gameState.playerGems);
     }
     
+    public toggleBlockedCell(x: number, y: number) {
+        if (x < 0 || x >= GRID_WIDTH || y < 0 || y >= GRID_HEIGHT) return;
+
+        const index = gameState.blockedCells.findIndex(c => c.x === x && c.y === y);
+        if (index > -1) {
+            gameState.blockedCells.splice(index, 1);
+        } else {
+            // Only block if no player gem occupies this cell
+            const isOccupied = gameState.playerGems.some(gem => {
+                for (let r = 0; r < gem.gridPattern.length; r++) {
+                    for (let c = 0; c < gem.gridPattern[r].length; c++) {
+                        if (gem.gridPattern[r][c] !== CellState.EMPTY && gem.x + c === x && gem.y + r === y) {
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            });
+            if (!isOccupied) {
+                gameState.blockedCells.push({ x, y });
+            }
+        }
+        this._revalidateAllPlayerGems();
+        this.ui.redrawAll();
+    }
+
     public setInteractionMode(mode: InteractionMode) {
         if (gameState.interactionMode !== mode) {
             gameState.interactionMode = mode;
@@ -495,7 +522,20 @@ export class Game {
         if (x < 0 || y < 0 || x + width > GRID_WIDTH || y + height > GRID_HEIGHT) {
             return false;
         }
-    
+
+        // Check against blocked cells
+        for (let r = 0; r < height; r++) {
+            for (let c = 0; c < width; c++) {
+                if (gridPattern[r][c] !== CellState.EMPTY) {
+                    const cellX = x + c;
+                    const cellY = y + r;
+                    if (gameState.blockedCells.some(bc => bc.x === cellX && bc.y === cellY)) {
+                        return false;
+                    }
+                }
+            }
+        }
+
         for (const otherGem of allPlacedGems) {
             if (id && otherGem.id === id) continue;
             if (this._doGemsCollide(gemToTest, otherGem)) {

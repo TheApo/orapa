@@ -111,6 +111,7 @@ export class Renderer {
         // --- Main Canvas (gemCtx) Drawing Order ---
         this._drawBoardBackgroundAndGrid(this.gemCtx);
         this._drawPermanentQueryFills(this.gemCtx);
+        this._drawBlockedCells(this.gemCtx);
         if (gameState.debugMode) this.drawDebugSolution(this.gemCtx);
         this.drawPlayerGems(this.gemCtx);
         this._drawPermanentQueryConflictBorders(this.gemCtx); // Draw conflicts on top of gems
@@ -205,6 +206,34 @@ export class Renderer {
         ctx.restore();
     }
     
+    private _drawBlockedCells(ctx: CanvasRenderingContext2D) {
+        if (gameState.blockedCells.length === 0) return;
+
+        ctx.save();
+        for (const cell of gameState.blockedCells) {
+            const coords = this._gridToCanvasCoords(cell.x, cell.y);
+            const w = this.cellWidth;
+            const h = this.cellHeight;
+            const padding = Math.min(w, h) * 0.2;
+
+            // Semi-transparent background
+            ctx.fillStyle = 'rgba(231, 76, 60, 0.12)';
+            ctx.fillRect(coords.x, coords.y, w, h);
+
+            // Draw X
+            ctx.strokeStyle = 'rgba(231, 76, 60, 0.7)';
+            ctx.lineWidth = Math.max(2, Math.min(w, h) * 0.08);
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            ctx.moveTo(coords.x + padding, coords.y + padding);
+            ctx.lineTo(coords.x + w - padding, coords.y + h - padding);
+            ctx.moveTo(coords.x + w - padding, coords.y + padding);
+            ctx.lineTo(coords.x + padding, coords.y + h - padding);
+            ctx.stroke();
+        }
+        ctx.restore();
+    }
+
     private _drawPermanentQueryFills(ctx: CanvasRenderingContext2D) {
         if (gameState.permanentQueryResults.length === 0) return;
         

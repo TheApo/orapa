@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm outdated:*)",
+      "Bash(npm install:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npm run:*)",
+      "Bash(npm ls:*)",
+      "Bash(taskkill //F //IM node.exe)",
+      "Bash(netstat -ano)"
+    ]
+  }
+}

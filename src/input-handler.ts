@@ -316,6 +316,11 @@ export class InputHandler {
                     this.game.setSelectedLogEntry(null);
                     this.game.rotatePlayerGem(clickedGem.id);
                 } else {
+                    // Check if click is on grid → toggle blocked cell
+                    const gridCoords = this.renderer._canvasToGridCoords(x, y);
+                    if (gridCoords.x >= 0 && gridCoords.x < GRID_WIDTH && gridCoords.y >= 0 && gridCoords.y < GRID_HEIGHT) {
+                        this.game.toggleBlockedCell(gridCoords.x, gridCoords.y);
+                    }
                     this.game.setSelectedLogEntry(null);
                 }
             }

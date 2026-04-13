@@ -66,6 +66,7 @@ export interface GameState {
     activePlayerPath: {x: number, y: number}[] | null; // Live calculated path for the player
     activePlayerResult: any | null; // Live calculated result for the player
     permanentQueryResults: PermanentQueryResult[]; // Persistently store all query results
+    blockedCells: {x: number, y: number}[]; // Cells marked with X by the player
     // For custom levels
     customGemSet: string[];
     customGemDefinitions: { [key: string]: any };
@@ -86,6 +87,7 @@ export const gameState: GameState = {
     activePlayerPath: null,
     activePlayerResult: null,
     permanentQueryResults: [],
+    blockedCells: [],
     customGemSet: [],
     customGemDefinitions: {},
 };
