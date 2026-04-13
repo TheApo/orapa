@@ -5,8 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Orapa Mine</title>
-  <script type="module" crossorigin src="./assets/index-z-ccuQGR.js"></script>
-  <link rel="stylesheet" crossorigin href="./assets/index-x5LkAYDN.css">
+  <script type="module" crossorigin src="./assets/index-dN5b43Zh.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-C9Q4ge8b.css">
 </head>
 <body>
     <div id="app">
@@ -78,11 +78,13 @@
                 <h3 id="end-rating"></h3>
                 <p id="end-stats"></p>
                 <p id="end-retry-message"></p>
-                <div id="end-solution-wrapper">
-                    <p id="end-solution-label"></p>
-                    <canvas id="end-solution-canvas"></canvas>
+                <div id="end-main-row">
+                    <div id="end-solution-wrapper">
+                        <p id="end-solution-label"></p>
+                        <canvas id="end-solution-canvas"></canvas>
+                    </div>
+                    <div id="end-rating-legend"></div>
                 </div>
-                <div id="end-rating-legend"></div>
             </div>
             <div class="menu-buttons">
                 <button id="btn-new-level" data-i18n-key="buttons.newLevel"></button>
@@ -97,6 +99,7 @@
                     <canvas id="gem-canvas" tabindex="0"></canvas>
                     <canvas id="path-overlay"></canvas>
                 </div>
+                <button id="rotate-board-btn" title="Spielfeld drehen">&#x21BB;</button>
             </main>
             <footer id="controls-container">
                 <div id="tab-buttons">
@@ -127,6 +130,9 @@
                         </div>
                     </div>
                     <div id="log-panel" class="tab-panel">
+                        <div id="sidebar-rating-info"></div>
+                        <h4 class="panel-heading" id="log-panel-heading"></h4>
+                        <p id="log-empty-msg" data-i18n-key="gameScreen.logEmpty"></p>
                         <ul id="log-list"></ul>
                     </div>
                     <div id="rules-panel" class="tab-panel">

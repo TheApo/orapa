@@ -658,6 +658,13 @@ html, body {
     image-rendering: crisp-edges;
 }
 
+#end-main-row {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+}
+
 #end-rating-legend {
     font-size: 0.75rem;
     color: rgba(255,255,255,0.7);
@@ -1215,7 +1222,7 @@ html, body {
 }
 
 /* --- Landscape / Desktop Layout (>=1024px) --- */
-@media (min-width: 1024px) {
+@media (orientation: landscape) {
     #app {
         max-width: none;
     }
@@ -1383,5 +1390,62 @@ html, body {
     #sidebar-rating-info li strong {
         color: var(--secondary-color);
         font-weight: 600;
+    }
+
+    /* --- End Screen: solution + rating side by side --- */
+    #end-main-row {
+        flex-direction: row;
+        align-items: flex-start;
+        gap: 1.5rem;
+        max-width: 900px;
+    }
+
+    #end-main-row #end-solution-wrapper {
+        flex: 1;
+        min-width: 0;
+    }
+
+    #end-main-row #end-rating-legend {
+        flex: 0 0 280px;
+        margin-top: 0;
+    }
+
+    /* --- Main Menu: two-column rules layout --- */
+    #screen-main .screen-content {
+        max-width: 900px;
+    }
+
+    #intro-rules {
+        display: flex;
+        flex-direction: row;
+        gap: 1.5rem;
+        align-items: flex-start;
+        max-width: 900px;
+    }
+
+    #intro-rules > .rules-details {
+        flex: 1;
+        min-width: 0;
+    }
+
+    /* Force both sections open in landscape: hide summary toggle, show content always */
+    #intro-rules > .rules-details {
+        border: none;
+    }
+
+    #intro-rules > .rules-details > .details-content {
+        display: block !important;
+    }
+
+    #intro-rules > .rules-details > .rules-summary::after {
+        content: none;
+    }
+
+    #intro-rules > .rules-details > .rules-summary {
+        cursor: default;
+        pointer-events: none;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid var(--border-color);
+        margin-bottom: 0.5rem;
     }
 }

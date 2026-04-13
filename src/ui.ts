@@ -155,6 +155,17 @@ export class UI {
         this.logList.addEventListener('animationend', () => {
             this.logList.classList.remove('flash');
         });
+
+        // In landscape, force intro-rules details open
+        const landscapeMQ = window.matchMedia('(orientation: landscape)');
+        const updateIntroDetails = () => {
+            const details = this.introRulesEl.querySelectorAll<HTMLDetailsElement>('.rules-details');
+            details.forEach(d => {
+                if (landscapeMQ.matches) d.setAttribute('open', '');
+            });
+        };
+        landscapeMQ.addEventListener('change', updateIntroDetails);
+        updateIntroDetails();
     }
 
     private updateUIText() {
@@ -590,6 +601,11 @@ export class UI {
         });
         const container = this.introRulesEl.querySelector('.color-mix-container') as HTMLElement;
         this.populateColorMixColumns(container);
+
+        // In landscape, force all details open
+        if (window.matchMedia('(orientation: landscape)').matches) {
+            this.introRulesEl.querySelectorAll<HTMLDetailsElement>('.rules-details').forEach(d => d.setAttribute('open', ''));
+        }
     }
 
     private _populateRulesPanel() {
