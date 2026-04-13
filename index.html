@@ -98,6 +98,7 @@
                     <canvas id="gem-canvas" tabindex="0"></canvas>
                     <canvas id="path-overlay"></canvas>
                 </div>
+                <button id="rotate-board-btn" title="Spielfeld drehen">&#x21BB;</button>
             </main>
             <footer id="controls-container">
                 <div id="tab-buttons">
@@ -128,6 +129,9 @@
                         </div>
                     </div>
                     <div id="log-panel" class="tab-panel">
+                        <div id="sidebar-rating-info"></div>
+                        <h4 class="panel-heading" id="log-panel-heading"></h4>
+                        <p id="log-empty-msg" data-i18n-key="gameScreen.logEmpty"></p>
                         <ul id="log-list"></ul>
                     </div>
                     <div id="rules-panel" class="tab-panel">

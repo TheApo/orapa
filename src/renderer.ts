@@ -10,6 +10,7 @@ import { EmitterButton } from './ui-objects';
 import { t } from './i18n';
 import { InputHandler } from './input-handler';
 import { UI } from './ui';
+import { getVisualCols, getVisualRows, gameToVisualCell, visualToGameCell, gameToVisualContinuous, rotateCellStateCW, mapEmitterToVisual } from './rotation';
 
 export class Renderer {
     private game: Game;
@@ -56,13 +57,15 @@ export class Renderer {
     public handleResize() {
         const wrapperRect = this.boardWrapper.getBoundingClientRect();
         if (wrapperRect.width === 0 || wrapperRect.height === 0) return;
-    
-        const totalGridCols = GRID_WIDTH + 2;
-        const totalGridRows = GRID_HEIGHT + 2;
-    
+
+        const vCols = getVisualCols(gameState.boardRotated);
+        const vRows = getVisualRows(gameState.boardRotated);
+        const totalGridCols = vCols + 2;
+        const totalGridRows = vRows + 2;
+
         this.cellWidth = (wrapperRect.width - (totalGridCols - 1) * this.gap) / totalGridCols;
         this.cellHeight = (wrapperRect.height - (totalGridRows - 1) * this.gap) / totalGridRows;
-        
+
         const dpr = window.devicePixelRatio || 1;
         [this.pathOverlay, this.gemCanvas].forEach(canvas => {
             canvas.width = wrapperRect.width * dpr;
@@ -71,18 +74,34 @@ export class Renderer {
             canvas.style.height = `${wrapperRect.height}px`;
             canvas.getContext('2d')!.scale(dpr, dpr);
         });
-        
-        this.emitters.forEach(emitter => emitter.updateRect(this.cellWidth, this.cellHeight, this.gap));
+
+        this.emitters.forEach(emitter => emitter.updateRect(this.cellWidth, this.cellHeight, this.gap, vCols, vRows));
 
         this.redrawAll();
     }
     
     public setupEmitters() {
         this.emitters = [];
-        for (let i = 0; i < GRID_WIDTH; i++) this.emitters.push(new EmitterButton(`T${i + 1}`, `T${i + 1}`));
-        for (let i = 0; i < GRID_WIDTH; i++) this.emitters.push(new EmitterButton(`B${i + 1}`, `B${i + 1}`));
-        for (let i = 0; i < GRID_HEIGHT; i++) this.emitters.push(new EmitterButton(`L${i + 1}`, `L${i + 1}`));
-        for (let i = 0; i < GRID_HEIGHT; i++) this.emitters.push(new EmitterButton(`R${i + 1}`, `R${i + 1}`));
+        const rotated = gameState.boardRotated;
+
+        // Always create emitters for all original game IDs.
+        // The label is the visual ID (what is displayed and used for positioning).
+        for (let i = 0; i < GRID_WIDTH; i++) {
+            const origId = `T${i + 1}`;
+            this.emitters.push(new EmitterButton(origId, mapEmitterToVisual(origId, rotated)));
+        }
+        for (let i = 0; i < GRID_WIDTH; i++) {
+            const origId = `B${i + 1}`;
+            this.emitters.push(new EmitterButton(origId, mapEmitterToVisual(origId, rotated)));
+        }
+        for (let i = 0; i < GRID_HEIGHT; i++) {
+            const origId = `L${i + 1}`;
+            this.emitters.push(new EmitterButton(origId, mapEmitterToVisual(origId, rotated)));
+        }
+        for (let i = 0; i < GRID_HEIGHT; i++) {
+            const origId = `R${i + 1}`;
+            this.emitters.push(new EmitterButton(origId, mapEmitterToVisual(origId, rotated)));
+        }
     }
     
     public updateEmitterFromLog(logEntry: WaveLog) {
@@ -171,38 +190,41 @@ export class Renderer {
     
     private _drawBoardBackgroundAndGrid(ctx: CanvasRenderingContext2D) {
         ctx.save();
-        
+
+        const vCols = getVisualCols(gameState.boardRotated);
+        const vRows = getVisualRows(gameState.boardRotated);
+
         const surfaceColor = getComputedStyle(document.documentElement).getPropertyValue('--surface-color');
         const borderColor = getComputedStyle(document.documentElement).getPropertyValue('--border-color');
-        
-        ctx.fillStyle = surfaceColor;
-        ctx.fillRect(0, 0, ctx.canvas.width / (window.devicePixelRatio||1), ctx.canvas.height / (window.devicePixelRatio||1));
-        
-        ctx.fillStyle = borderColor;
-        ctx.fillRect(this.cellWidth + this.gap/2, this.cellHeight + this.gap/2, 
-                     (GRID_WIDTH) * this.cellWidth + (GRID_WIDTH + 1) * this.gap, 
-                     (GRID_HEIGHT) * this.cellHeight + (GRID_HEIGHT + 1) * this.gap);
 
         ctx.fillStyle = surfaceColor;
-        ctx.fillRect(this.cellWidth + this.gap, this.cellHeight + this.gap, 
-            (GRID_WIDTH) * this.cellWidth + (GRID_WIDTH - 1) * this.gap, 
-            (GRID_HEIGHT) * this.cellHeight + (GRID_HEIGHT - 1) * this.gap);
+        ctx.fillRect(0, 0, ctx.canvas.width / (window.devicePixelRatio||1), ctx.canvas.height / (window.devicePixelRatio||1));
+
+        ctx.fillStyle = borderColor;
+        ctx.fillRect(this.cellWidth + this.gap/2, this.cellHeight + this.gap/2,
+                     (vCols) * this.cellWidth + (vCols + 1) * this.gap,
+                     (vRows) * this.cellHeight + (vRows + 1) * this.gap);
+
+        ctx.fillStyle = surfaceColor;
+        ctx.fillRect(this.cellWidth + this.gap, this.cellHeight + this.gap,
+            (vCols) * this.cellWidth + (vCols - 1) * this.gap,
+            (vRows) * this.cellHeight + (vRows - 1) * this.gap);
 
         ctx.strokeStyle = borderColor;
         ctx.lineWidth = this.gap;
         ctx.beginPath();
-        for (let i = 1; i < GRID_WIDTH; i++) {
+        for (let i = 1; i < vCols; i++) {
             const x = (i+1) * (this.cellWidth + this.gap) - this.gap/2;
             ctx.moveTo(x, this.cellHeight + this.gap);
-            ctx.lineTo(x, (GRID_HEIGHT+1) * (this.cellHeight + this.gap) );
+            ctx.lineTo(x, (vRows+1) * (this.cellHeight + this.gap) );
         }
-        for (let i = 1; i < GRID_HEIGHT; i++) {
+        for (let i = 1; i < vRows; i++) {
             const y = (i+1) * (this.cellHeight + this.gap) - this.gap/2;
             ctx.moveTo(this.cellWidth + this.gap, y);
-            ctx.lineTo((GRID_WIDTH+1) * (this.cellWidth + this.gap), y);
+            ctx.lineTo((vCols+1) * (this.cellWidth + this.gap), y);
         }
         ctx.stroke();
-        
+
         ctx.restore();
     }
     
@@ -336,7 +358,10 @@ export class Renderer {
             for (let c = 0; c < gridPattern[r].length; c++) {
                 if (gridPattern[r][c] !== CellState.EMPTY) {
                     const canvasCoords = this._gridToCanvasCoords(x + c, y + r);
-                    this.drawCellShape(ctx, canvasCoords.x, canvasCoords.y, this.cellWidth, this.cellHeight, gridPattern[r][c], color, isInvalid, isHovered);
+                    const cellState = gameState.boardRotated
+                        ? rotateCellStateCW(gridPattern[r][c])
+                        : gridPattern[r][c];
+                    this.drawCellShape(ctx, canvasCoords.x, canvasCoords.y, this.cellWidth, this.cellHeight, cellState, color, isInvalid, isHovered);
                 }
             }
         }
@@ -394,7 +419,7 @@ export class Renderer {
     
     private drawPath(ctx: CanvasRenderingContext2D, path: {x:number, y:number}[], color: string, isPreview: boolean = false) {
         if (path.length < 2) return;
-    
+
         ctx.save();
         ctx.strokeStyle = color;
         ctx.lineWidth = 3;
@@ -407,15 +432,19 @@ export class Renderer {
             ctx.globalAlpha = 0.6;
             ctx.setLineDash([8, 6]);
         }
-    
+
         ctx.beginPath();
         const gridStartX = this.cellWidth + this.gap;
         const gridStartY = this.cellHeight + this.gap;
         const stepX = this.cellWidth + this.gap;
         const stepY = this.cellHeight + this.gap;
+        const rotated = gameState.boardRotated;
 
-        const p2c = (p: {x: number, y: number}) => ({ x: gridStartX + p.x * stepX, y: gridStartY + p.y * stepY });
-        
+        const p2c = (p: {x: number, y: number}) => {
+            const v = gameToVisualContinuous(p.x, p.y, rotated);
+            return { x: gridStartX + v.x * stepX, y: gridStartY + v.y * stepY };
+        };
+
         ctx.moveTo(p2c(path[0]).x, p2c(path[0]).y);
         for (let i = 1; i < path.length; i++) {
             ctx.lineTo(p2c(path[i]).x, p2c(path[i]).y);
@@ -443,17 +472,17 @@ export class Renderer {
     }
 
     public _gridToCanvasCoords(gridX: number, gridY: number): { x: number; y: number } {
+        const v = gameToVisualCell(gridX, gridY, gameState.boardRotated);
         return {
-            x: (gridX + 1) * (this.cellWidth + this.gap),
-            y: (gridY + 1) * (this.cellHeight + this.gap),
+            x: (v.x + 1) * (this.cellWidth + this.gap),
+            y: (v.y + 1) * (this.cellHeight + this.gap),
         };
     }
 
     public _canvasToGridCoords(canvasX: number, canvasY: number): { x: number; y: number } {
-        return {
-            x: Math.floor(canvasX / (this.cellWidth + this.gap)) - 1,
-            y: Math.floor(canvasY / (this.cellHeight + this.gap)) - 1,
-        }
+        const visualX = Math.floor(canvasX / (this.cellWidth + this.gap)) - 1;
+        const visualY = Math.floor(canvasY / (this.cellHeight + this.gap)) - 1;
+        return visualToGameCell(visualX, visualY, gameState.boardRotated);
     }
     
     public drawToolbarGem(canvas: HTMLCanvasElement, gemDef: any) {
@@ -531,16 +560,21 @@ export class Renderer {
         if (!this.inputHandler) return;
         const selectedLog = gameState.log.find(l => l.id === gameState.selectedLogEntryId) as WaveLog | undefined;
         if (!selectedLog || selectedLog.type !== InteractionMode.WAVE) return;
-    
+
         const contextEmitterId = gameState.previewSourceEmitterId || selectedLog.id;
         const contextEmitter = this.emitters.find(e => e.id === contextEmitterId);
         if (!contextEmitter) return;
 
+        const rotated = gameState.boardRotated;
         const pathColorName = this.ui.getPathColorName(selectedLog.result);
+        const visualStart = mapEmitterToVisual(selectedLog.id, rotated);
+        const visualExit = mapEmitterToVisual(selectedLog.result.exitId, rotated);
+        const visualContext = mapEmitterToVisual(contextEmitterId, rotated);
+
         const text = (contextEmitterId === selectedLog.id)
-            ? `${selectedLog.id} ➔ ${pathColorName} ➔ ${selectedLog.result.exitId}`
-            : `${selectedLog.result.exitId} ➔ ${pathColorName} ➔ ${selectedLog.id}`;
-    
+            ? `${visualStart} ➔ ${pathColorName} ➔ ${visualExit}`
+            : `${visualExit} ➔ ${pathColorName} ➔ ${visualStart}`;
+
         this.drawTooltip(ctx, text, contextEmitter.rect);
     }
 

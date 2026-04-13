@@ -67,6 +67,7 @@ export interface GameState {
     activePlayerResult: any | null; // Live calculated result for the player
     permanentQueryResults: PermanentQueryResult[]; // Persistently store all query results
     blockedCells: {x: number, y: number}[]; // Cells marked with X by the player
+    boardRotated: boolean; // Visual 90° CW rotation of the board (8x10 → 10x8)
     // For custom levels
     customGemSet: string[];
     customGemDefinitions: { [key: string]: any };
@@ -88,6 +89,7 @@ export const gameState: GameState = {
     activePlayerResult: null,
     permanentQueryResults: [],
     blockedCells: [],
+    boardRotated: false,
     customGemSet: [],
     customGemDefinitions: {},
 };

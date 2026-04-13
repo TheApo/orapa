@@ -7,6 +7,8 @@ import { t, setLanguage, getLanguage, onLanguageChange, Language } from './i18n'
 import { Renderer } from './renderer';
 import { InputHandler } from './input-handler';
 import { CustomCreatorUI } from './custom-creator-ui';
+import { mapEmitterToVisual, gameToVisualCell } from './rotation';
+import { GRID_HEIGHT } from './grid';
 
 
 export class UI {
@@ -40,6 +42,8 @@ export class UI {
     rulesPanel!: HTMLElement;
     modeWaveBtn!: HTMLButtonElement;
     modeQueryBtn!: HTMLButtonElement;
+    rotateBoardBtn!: HTMLButtonElement;
+    boardWrapper!: HTMLElement;
     
     // End Screen Elements
     endTitle!: HTMLElement;
@@ -95,6 +99,8 @@ export class UI {
         this.previewToggle = document.getElementById('preview-toggle') as HTMLInputElement;
         this.modeWaveBtn = document.getElementById('mode-wave-btn') as HTMLButtonElement;
         this.modeQueryBtn = document.getElementById('mode-query-btn') as HTMLButtonElement;
+        this.rotateBoardBtn = document.getElementById('rotate-board-btn') as HTMLButtonElement;
+        this.boardWrapper = document.getElementById('game-board-wrapper')!;
         
         this.endTitle = document.getElementById('end-title')!;
         this.endRating = document.getElementById('end-rating') as HTMLElement;
@@ -129,6 +135,7 @@ export class UI {
         this.previewToggle.addEventListener('change', () => this.game.togglePlayerPathPreview());
         this.modeWaveBtn.addEventListener('click', () => this.game.setInteractionMode(InteractionMode.WAVE));
         this.modeQueryBtn.addEventListener('click', () => this.game.setInteractionMode(InteractionMode.QUERY));
+        this.rotateBoardBtn.addEventListener('click', () => this.toggleBoardRotation());
         
         document.addEventListener('keydown', (e) => {
             if (e.key === 'n' && (gameState.status === GameStatus.PLAYING || gameState.status === GameStatus.GAME_OVER)) {
@@ -184,10 +191,12 @@ export class UI {
         this._populateRulesPanel();
         this.switchTab('actions');
         this.updateInteractionModeUI(gameState.interactionMode);
+        this.boardWrapper.classList.remove('board-rotated');
         this.renderer.setupEmitters();
         this.updateToolbar();
         this.logList.innerHTML = '';
         this.updateLogTabCounter();
+        this._populateSidebarRating();
         this.renderer.clearPath();
         this.game.updateSolutionButtonState();
         this.updatePreviewToggleState(gameState.showPlayerPathPreview);
@@ -282,7 +291,28 @@ export class UI {
         this.redrawAll();
         this.updateLogHighlight();
     }
-    
+
+    public toggleBoardRotation() {
+        gameState.boardRotated = !gameState.boardRotated;
+        // Update board wrapper aspect ratio
+        if (gameState.boardRotated) {
+            this.boardWrapper.classList.add('board-rotated');
+        } else {
+            this.boardWrapper.classList.remove('board-rotated');
+        }
+        // Rebuild emitters with new visual labels/positions, then re-render
+        this.renderer.setupEmitters();
+        // Restore used-state on emitters from existing log
+        for (const logEntry of gameState.log) {
+            if (logEntry.type === InteractionMode.WAVE) {
+                this.renderer.updateEmitterFromLog(logEntry);
+            }
+        }
+        this.renderer.handleResize();
+        // Re-render the log with visual emitter IDs
+        this.refreshLog();
+    }
+
     redrawAll() {
         if (!this.renderer) return;
         this.renderer.redrawAll();
@@ -295,13 +325,22 @@ export class UI {
     }
 
     addLogEntry(logEntry: LogEntry) {
+        const li = this.createLogEntryElement(logEntry, true);
+        this.logList.prepend(li);
+        this.updateLogTabCounter();
+    }
+
+    private createLogEntryElement(logEntry: LogEntry, updateEmitter: boolean): HTMLLIElement {
         const li = document.createElement('li');
         li.dataset.logId = logEntry.id;
-    
+        const rotated = gameState.boardRotated;
+
         if (logEntry.type === InteractionMode.WAVE) {
-            this.renderer.updateEmitterFromLog(logEntry);
+            if (updateEmitter) this.renderer.updateEmitterFromLog(logEntry);
             const { result } = logEntry;
-            const resultText = `${logEntry.id} ➔ ${result.exitId}`;
+            const visualStart = mapEmitterToVisual(logEntry.id, rotated);
+            const visualExit = mapEmitterToVisual(result.exitId, rotated);
+            const resultText = `${visualStart} ➔ ${visualExit}`;
             const resultColor = this.renderer.getPathColor(result);
             const colorName = this.getPathColorName(result);
             li.innerHTML = `<span>${resultText}</span><div class="log-entry-result"><span class="log-color-name">${colorName}</span><div class="log-color-box" style="background-color: ${resultColor};"></div></div>`;
@@ -310,25 +349,39 @@ export class UI {
             const { coords, result } = logEntry;
             const resultColor = result.colorHex || 'transparent';
             const colorName = result.colorNameKey ? t(result.colorNameKey) : t('log.empty');
-            const queryText = t('log.query', { x: coords.x + 1, y: coords.y + 1 });
-            const boxStyle = `background-color: ${resultColor};` + 
+            // Translate query coords to visual coords for display
+            const vCoords = gameToVisualCell(coords.x, coords.y, rotated);
+            const displayX = vCoords.x + 1;
+            const displayY = vCoords.y + 1;
+            const queryText = t('log.query', { x: displayX, y: displayY });
+            const boxStyle = `background-color: ${resultColor};` +
                              (this.renderer.isTransparentColor(resultColor) ? 'border-color: #a4d4e4;' : '');
-    
+
             li.innerHTML = `<span>${queryText}</span><div class="log-entry-result"><span class="log-color-name">${colorName}</span><div class="log-color-box" style="${boxStyle}"></div></div>`;
         }
-        
-        this.logList.prepend(li);
-        this.updateLogTabCounter();
+        return li;
+    }
+
+    private refreshLog() {
+        this.logList.innerHTML = '';
+        // Log entries are stored newest-first in the DOM, but the array is chronological
+        for (let i = gameState.log.length - 1; i >= 0; i--) {
+            const li = this.createLogEntryElement(gameState.log[i], false);
+            this.logList.appendChild(li);
+        }
+        this.updateLogHighlight();
     }
 
     private updateLogTabCounter() {
         const count = gameState.log.length;
         const logbook = t('gameScreen.tabs.logbook');
-        if (count > 0) {
-            this.logTabBtn.textContent = `${logbook} (${count})`;
-        } else {
-            this.logTabBtn.textContent = logbook;
-        }
+        const emptyMsg = document.getElementById('log-empty-msg');
+        if (emptyMsg) emptyMsg.style.display = count > 0 ? 'none' : 'block';
+        const label = count > 0 ? `${logbook} (${count})` : logbook;
+        this.logTabBtn.textContent = label;
+        // Also update the sidebar panel heading
+        const panelHeading = document.getElementById('log-panel-heading');
+        if (panelHeading) panelHeading.textContent = label;
     }
     
     private areGemSetsIdentical(gemsA: Gem[], gemsB: Gem[]): boolean {
@@ -569,5 +622,30 @@ export class UI {
     
         const container = this.rulesPanel.querySelector('.color-mix-container') as HTMLElement;
         this.populateColorMixColumns(container);
+    }
+
+    private _populateSidebarRating() {
+        const el = document.getElementById('sidebar-rating-info');
+        if (!el) return;
+
+        const difficulty = gameState.difficulty;
+        if (!difficulty || !RATINGS[difficulty]) {
+            el.innerHTML = '';
+            return;
+        }
+
+        const ratingTiers = RATINGS[difficulty];
+        let html = `<h5>${t('endScreen.ratingLegendTitle', { difficulty: t('difficulty.' + difficulty) })}</h5><ul>`;
+        let lastLimit = 0;
+        ratingTiers.forEach(tier => {
+            const rangeTextKey = lastLimit === 0 ? 'endScreen.ratingLegend.upTo'
+                            : tier.limit === Infinity ? 'endScreen.ratingLegend.moreThan'
+                            : 'endScreen.ratingLegend.range';
+            const rangeText = t(rangeTextKey, { start: lastLimit + 1, end: tier.limit });
+            html += `<li><strong>${t(tier.textKey)}:</strong> ${rangeText}</li>`;
+            lastLimit = tier.limit;
+        });
+        html += '</ul>';
+        el.innerHTML = html;
     }
 }

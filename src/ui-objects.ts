@@ -1,5 +1,5 @@
 
-import { CellState, GRID_WIDTH, GRID_HEIGHT } from './grid';
+import { CellState } from './grid';
 
 export type EmitterState = 'normal' | 'focused';
 
@@ -21,27 +21,29 @@ export class EmitterButton {
         this.rect = { x: 0, y: 0, width: 0, height: 0 };
     }
 
-    updateRect(cellWidth: number, cellHeight: number, gap: number) {
+    updateRect(cellWidth: number, cellHeight: number, gap: number, visualCols: number, visualRows: number) {
         this.rect.width = cellWidth;
         this.rect.height = cellHeight;
-        const idNum = parseInt(this.id.substring(1)) - 1;
-        
-        switch (this.id[0]) {
+        // Position based on visual label, not game ID
+        const posPrefix = this.label[0];
+        const posNum = parseInt(this.label.substring(1)) - 1;
+
+        switch (posPrefix) {
             case 'T':
-                this.rect.x = (idNum + 1) * (cellWidth + gap);
+                this.rect.x = (posNum + 1) * (cellWidth + gap);
                 this.rect.y = 0;
                 break;
             case 'B':
-                this.rect.x = (idNum + 1) * (cellWidth + gap);
-                this.rect.y = (GRID_HEIGHT + 1) * (cellHeight + gap);
+                this.rect.x = (posNum + 1) * (cellWidth + gap);
+                this.rect.y = (visualRows + 1) * (cellHeight + gap);
                 break;
             case 'L':
                 this.rect.x = 0;
-                this.rect.y = (idNum + 1) * (cellHeight + gap);
+                this.rect.y = (posNum + 1) * (cellHeight + gap);
                 break;
             case 'R':
-                this.rect.x = (GRID_WIDTH + 1) * (cellWidth + gap);
-                this.rect.y = (idNum + 1) * (cellHeight + gap);
+                this.rect.x = (visualCols + 1) * (cellWidth + gap);
+                this.rect.y = (posNum + 1) * (cellHeight + gap);
                 break;
         }
     }

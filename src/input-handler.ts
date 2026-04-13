@@ -7,6 +7,7 @@ import { Renderer } from './renderer';
 import { gameState, Gem, InteractionMode } from './state';
 import { GRID_WIDTH, GRID_HEIGHT } from './grid';
 import { CellState } from './grid';
+import { rotateGridPattern } from './physics';
 
 type DragInfo = {
     name: string;
@@ -14,7 +15,7 @@ type DragInfo = {
     gridPattern: CellState[][];
     element?: HTMLElement;
     id?: string;
-    offsetX: number;
+    offsetX: number; // Click offset in grid cells from gem top-left
     offsetY: number;
 };
 
@@ -152,17 +153,23 @@ export class InputHandler {
         let potentialDragItem: DragInfo | null = null;
     
         if (toolbarGemEl) {
-            const rect = toolbarGemEl.getBoundingClientRect();
             const name = (toolbarGemEl as HTMLElement).dataset.gemName!;
             const gemDef = this.ui.getGemDefinition(name);
             if (gemDef) {
+                // When board is rotated, counter-rotate (3x CW = 1x CCW)
+                // so the visual CW rotation in the renderer cancels out
+                // and the gem looks the same as in the toolbar
+                let pattern = gemDef.gridPattern;
+                if (gameState.boardRotated) {
+                    pattern = rotateGridPattern(rotateGridPattern(rotateGridPattern(pattern)));
+                }
                 potentialDragItem = {
                     name,
                     from: 'toolbar',
-                    gridPattern: gemDef.gridPattern,
+                    gridPattern: pattern,
                     element: (toolbarGemEl as HTMLElement),
-                    offsetX: clientX - rect.left,
-                    offsetY: clientY - rect.top,
+                    offsetX: pattern[0].length / 2,
+                    offsetY: pattern.length / 2,
                 };
             }
         } else if (isOverCanvas && gameState.interactionMode === InteractionMode.WAVE && this.renderer) {
@@ -177,8 +184,9 @@ export class InputHandler {
                     name: gem.name,
                     from: 'board',
                     gridPattern: gem.gridPattern,
-                    offsetX: (gridCoords.x - gem.x) * this.renderer['cellWidth'],
-                    offsetY: (gridCoords.y - gem.y) * this.renderer['cellHeight']
+                    // Offset in grid cells from gem's top-left corner
+                    offsetX: gridCoords.x - gem.x,
+                    offsetY: gridCoords.y - gem.y,
                 };
                 
                 if (gem.isFlippable) {
@@ -227,18 +235,18 @@ export class InputHandler {
             if (this.isDragging) {
                 const canvasRect = this.gemCanvas.getBoundingClientRect();
                 this.dragPos = { x: clientX - canvasRect.left, y: clientY - canvasRect.top };
-                
-                const { gridPattern, name, id } = this.draggedItemInfo!;
-                const pWidth = gridPattern[0].length;
-                const pHeight = gridPattern.length;
-                const gridX = Math.round(this.renderer!._canvasToGridCoords(this.dragPos.x, this.dragPos.y).x - pWidth / 2 + 0.5);
-                const gridY = Math.round(this.renderer!._canvasToGridCoords(this.dragPos.y, this.dragPos.y).y - pHeight / 2 + 0.5);
+
+                const { gridPattern, name, id, offsetX, offsetY } = this.draggedItemInfo!;
+                const gridCoord = this.renderer!._canvasToGridCoords(this.dragPos.x, this.dragPos.y);
+                // Subtract the grab offset so the gem stays anchored to the click point
+                const gridX = Math.round(gridCoord.x - offsetX);
+                const gridY = Math.round(gridCoord.y - offsetY);
 
                 const gemToTest = { id, name, x: gridX, y: gridY, gridPattern };
                 this.lastValidDropTarget.isValid = this.game.canPlaceGem(gemToTest);
                 this.lastValidDropTarget.x = gridX;
                 this.lastValidDropTarget.y = gridY;
-                
+
                 this.ui.redrawAll();
             }
         } else {

@@ -54,7 +54,8 @@ const translations = {
             modeWave: "Strahl senden",
             modeQuery: "Feld abfragen",
             availableGems: "Verfügbare Edelsteine:",
-            showPath: "Aktuellen Lichtweg anzeigen (F)"
+            showPath: "Aktuellen Lichtweg anzeigen (F)",
+            logEmpty: "Noch keine Einträge.",
         },
         endScreen: {
             winTitle: "Gewonnen!",
@@ -225,7 +226,8 @@ const translations = {
             modeWave: "Send Ray",
             modeQuery: "Query Cell",
             availableGems: "Available Gems:",
-            showPath: "Show current light path (F)"
+            showPath: "Show current light path (F)",
+            logEmpty: "No entries yet.",
         },
         endScreen: {
             winTitle: "You Win!",

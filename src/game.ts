@@ -87,6 +87,7 @@ export class Game {
         gameState.activePlayerResult = null;
         gameState.permanentQueryResults = [];
         gameState.blockedCells = [];
+        gameState.boardRotated = false;
 
         this.ui.setupGameUI();
         this.ui.showScreen('game');
@@ -262,14 +263,22 @@ export class Game {
         const gemDef = this.getGemDefinition(gemName);
         if (!gemDef) return;
 
-        const newGem: Gem = { 
-            id: `player_${Date.now()}`, 
-            name: gemName, 
-            x, y, 
+        // When board is rotated, counter-rotate (3x CW = 1x CCW)
+        // so the visual CW rotation in the renderer cancels out
+        // and the gem looks the same as in the toolbar
+        let pattern = gemDef.gridPattern;
+        if (gameState.boardRotated) {
+            pattern = rotateGridPattern(rotateGridPattern(rotateGridPattern(pattern)));
+        }
+
+        const newGem: Gem = {
+            id: `player_${Date.now()}`,
+            name: gemName,
+            x, y,
             rotation: 0,
             isFlipped: false,
-            isFlippable: isShapeFlippable(gemDef.gridPattern),
-            gridPattern: gemDef.gridPattern,
+            isFlippable: isShapeFlippable(pattern),
+            gridPattern: pattern,
             isValid: false
         };
         
